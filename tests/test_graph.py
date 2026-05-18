@@ -70,7 +70,7 @@ class TestTopologicalOrder(unittest.TestCase):
         self.assertEqual(len(result), 2)
         self.assertEqual(set(result), {"0000002", "0000003"})
 
-    # 동일 sort key일 때 merge_sort enqueue 순서가 결정적인지 검증한다.
+    # 동일 timestamp일 때 hash lex 순으로 tie-break되는지 검증한다.
     def test_deterministic_ties(self) -> None:
         parents = {
             "0000001": [],
@@ -80,7 +80,7 @@ class TestTopologicalOrder(unittest.TestCase):
         result = topological_order(
             parents.keys(),
             _parents_map(parents),
-            get_sort_key=lambda h: 0,
+            get_sort_key=lambda h: (0, h),
         )
         self.assertEqual(result, ["0000001", "0000002", "0000003"])
 
