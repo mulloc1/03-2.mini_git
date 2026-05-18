@@ -333,3 +333,72 @@ class TestAncestors(unittest.TestCase):
         repo.init("alice")
         with self.assertRaises(RepoError):
             repo.ancestors("9999999")
+
+
+class TestSearchKeyword(unittest.TestCase):
+    # 키워드 exact token 매칭 결과가 토폴로지 순서인지 검증한다.
+    def test_search_keyword_topological_order(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("Add login feature")
+        b = repo.commit("Fix login bug")
+        repo.commit("Add UI polish")
+        self.assertEqual(
+            [commit.hash for commit in repo.search_keyword("login")],
+            [a.hash, b.hash],
+        )
+
+    # substring이 아닌 exact token만 매칭되는지 검증한다.
+    def test_search_keyword_no_substring(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("Add login feature")
+        self.assertEqual(repo.search_keyword("log"), [])
+
+    # 키워드 검색이 대소문자 무시되는지 검증한다.
+    def test_search_keyword_case_insensitive(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("Add login feature")
+        self.assertEqual(
+            [commit.hash for commit in repo.search_keyword("Login")],
+            [a.hash],
+        )
+
+    # 매칭 없을 때 빈 리스트를 반환하는지 검증한다.
+    def test_search_keyword_empty(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("hello world")
+        self.assertEqual(repo.search_keyword("missing"), [])
+
+
+class TestSearchAuthor(unittest.TestCase):
+    # author 검색이 대소문자를 구분하는지 검증한다.
+    def test_search_author_case_sensitive(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        alice_commit = repo.commit("msg")
+        self.assertEqual(
+            [commit.hash for commit in repo.search_author("alice")],
+            [alice_commit.hash],
+        )
+        self.assertEqual(repo.search_author("Alice"), [])
+
+    # author별 결과가 토폴로지 순서인지 검증한다.
+    def test_search_author_topological_order(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        b = repo.commit("b")
+        self.assertEqual(
+            [commit.hash for commit in repo.search_author("alice")],
+            [a.hash, b.hash],
+        )
+
+    # 매칭 없을 때 빈 리스트를 반환하는지 검증한다.
+    def test_search_author_empty(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("msg")
+        self.assertEqual(repo.search_author("bob"), [])
