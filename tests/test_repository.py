@@ -6,6 +6,7 @@ import unittest
 
 from helpers import FakeClock, make_repo
 
+from mini_git.commit import Commit
 from mini_git.errors import RepoError
 
 
@@ -234,3 +235,101 @@ class TestLog(unittest.TestCase):
         repo.commit("a")
         with self.assertRaises(RepoError):
             repo.log_sorted("hash")
+
+
+class TestPath(unittest.TestCase):
+    # 선형 체인 PATH가 최단 경로를 반환하는지 검증한다.
+    def test_path_chain(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        b = repo.commit("b")
+        c = repo.commit("c")
+        self.assertEqual(repo.path(a.hash, c.hash), [a.hash, b.hash, c.hash])
+
+    # fork 그래프에서 PATH가 fork-point를 경유하는지 검증한다.
+    def test_path_fork_through_fork_point(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("a")
+        fork_point = repo.commit("b")
+        repo.branch("feature")
+        main_tip = repo.commit("main-third")
+        repo.switch("feature")
+        feature_tip = repo.commit("feature-third")
+        self.assertEqual(
+            repo.path(main_tip.hash, feature_tip.hash),
+            [main_tip.hash, fork_point.hash, feature_tip.hash],
+        )
+
+    # 시작과 목표가 같으면 단일 노드 경로를 반환하는지 검증한다.
+    def test_path_start_equals_goal(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        self.assertEqual(repo.path(a.hash, a.hash), [a.hash])
+
+    # 미존재 hash로 PATH 시 RepoError가 발생하는지 검증한다.
+    def test_path_unknown_commit_raises(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        with self.assertRaises(RepoError):
+            repo.path(a.hash, "9999999")
+
+    # 연결되지 않은 컴포넌트 사이 PATH는 None을 반환하는지 검증한다.
+    def test_path_disconnected_returns_none(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        orphan = Commit(
+            hash="0000099",
+            message="orphan",
+            author="alice",
+            timestamp=99,
+        )
+        repo._commits[orphan.hash] = orphan
+        repo._root_hashes.append(orphan.hash)
+        self.assertIsNone(repo.path(a.hash, orphan.hash))
+
+
+class TestAncestors(unittest.TestCase):
+    # 루트 커밋 ANCESTORS는 빈 리스트인지 검증한다.
+    def test_ancestors_root_empty(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        root = repo.commit("root")
+        self.assertEqual(repo.ancestors(root.hash), [])
+
+    # 선형 체인 ANCESTORS가 부모 순 토폴로지 순서인지 검증한다.
+    def test_ancestors_chain(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        b = repo.commit("b")
+        c = repo.commit("c")
+        self.assertEqual(
+            [commit.hash for commit in repo.ancestors(c.hash)],
+            [a.hash, b.hash],
+        )
+
+    # fork 그래프 ANCESTORS가 형제 브랜치 커밋을 제외하는지 검증한다.
+    def test_ancestors_fork_excludes_sibling(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        b = repo.commit("b")
+        repo.branch("feature")
+        main_tip = repo.commit("main-third")
+        repo.switch("feature")
+        feature_tip = repo.commit("feature-third")
+        ancestor_hashes = {commit.hash for commit in repo.ancestors(main_tip.hash)}
+        self.assertEqual(ancestor_hashes, {a.hash, b.hash})
+        self.assertNotIn(feature_tip.hash, ancestor_hashes)
+
+    # 미존재 hash로 ANCESTORS 시 RepoError가 발생하는지 검증한다.
+    def test_ancestors_unknown_commit_raises(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        with self.assertRaises(RepoError):
+            repo.ancestors("9999999")
