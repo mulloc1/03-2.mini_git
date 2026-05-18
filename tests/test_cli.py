@@ -290,3 +290,25 @@ class TestExit(unittest.TestCase):
         stdout = StringIO()
         run_repl(repo, StringIO(""), stdout)
         self.assertIn("mini-git> ", stdout.getvalue())
+
+    # Ctrl-C(KeyboardInterrupt)가 REPL을 정상 종료하는지 검증한다.
+    def test_keyboard_interrupt_exits_repl(self) -> None:
+        class InterruptingStdin(StringIO):
+            def readline(self) -> str:
+                raise KeyboardInterrupt
+
+        repo = make_repo()
+        stdout = StringIO()
+        run_repl(repo, InterruptingStdin(), stdout)
+        self.assertIn("mini-git> \n", stdout.getvalue())
+
+    # readline()이 EOFError를 던져도 REPL이 정상 종료되는지 검증한다.
+    def test_eof_error_exits_repl(self) -> None:
+        class EofStdin(StringIO):
+            def readline(self) -> str:
+                raise EOFError
+
+        repo = make_repo()
+        stdout = StringIO()
+        run_repl(repo, EofStdin(), stdout)
+        self.assertIn("mini-git> ", stdout.getvalue())

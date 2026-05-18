@@ -187,15 +187,21 @@ def run_repl(
     stdin: IO[str] | None = None,
     stdout: TextIO | None = None,
 ) -> None:
-    """Run the Mini Git REPL until exit, quit, or EOF."""
+    """Run the Mini Git REPL until exit, quit, EOF, or interrupt."""
     import sys
 
     input_stream = stdin if stdin is not None else sys.stdin
     output_stream = stdout if stdout is not None else sys.stdout
     while True:
-        output_stream.write(PROMPT)
-        output_stream.flush()
-        line = input_stream.readline()
+        try:
+            output_stream.write(PROMPT)
+            output_stream.flush()
+            line = input_stream.readline()
+        except EOFError:
+            break
+        except KeyboardInterrupt:
+            output_stream.write("\n")
+            break
         if line == "":
             break
         line = line.rstrip("\n")
@@ -210,5 +216,8 @@ def run_repl(
         try:
             if not dispatch(repo, tokens, output_stream):
                 break
+        except KeyboardInterrupt:
+            output_stream.write("\n")
+            break
         except (CommandError, RepoError) as exc:
             _write_line(output_stream, str(exc))
