@@ -20,34 +20,33 @@ This document is a phased implementation plan that satisfies both the requiremen
 
 Decisions for items left open in subject (“implementation free”, “tie-break rules free”, etc.) and other choices fixed for this assignment.
 
-
-| Item | Decision | Rationale |
-| --- | --- | --- |
-| Command case (subject §4.1) | **Case-insensitive** (`INIT`/`init`/`Init` all allowed) | As stated in subject §4.1 |
-| Argument parsing (subject §4.1) | Support **unquoted tokens** and **double-quoted values**; no escape sequences | Subject example (`COMMIT "Add login feature"`) + YAGNI |
-| Option syntax | `SEARCH --author=<name>`, `LOG --sort-by=date`, `LOG --sort-by=author` (`=` required, no space) | Matches subject §4.1 examples; simpler tokenizer |
-| Hash generation (subject §4.2) | **Session monotonic counter** → `f"{n:07x}"` 7-digit hex (`0000001`, `0000002`, …) | Session uniqueness only; readable output and deterministic lex order for `PATH` ties |
-| Commit store | **dict** (`hash → Commit`) | Subject “e.g. hash map” — average O(1) lookup is enough; custom DS focus is inverted index (§4.3) |
-| Parent representation | `Commit.parents: list[str]` (hash strings). Root commit: empty list | Subject §4.2 “zero or more parents” |
-| timestamp | **Monotonic integer sequence** (`Commit` creation order = timestamp). Real clock stored separately for display | Deterministic ties for `LOG --sort-by=date` and topological `LOG`; test determinism |
-| Display clock | Inject `clock: Callable[[], float] = time.time` (tests use `FakeClock`) | .cursorrules §5 Testing Determinism |
-| HEAD model | Single pointer to **branch name**. No detached HEAD | Within subject commands (`SWITCH branch_name` only), YAGNI |
-| Initial branch | `main` | subject §4.5 INIT |
-| Duplicate `BRANCH` name | **Error** (`Branch already exists: <name>`) | Safety; subject “standardize errors” spirit |
-| `SWITCH` to missing branch | `Unknown branch: <name>` | subject §4.1 standard message |
-| `INIT` re-invocation | **Reset current session** (discard all commits, branches, inverted index, rebuild) | subject §4.5 “initialize repository” |
-| `LOG` topological output (subject §4.5) | **Kahn's algorithm** parent→child order. Ties (same in-degree): ascending `timestamp` → lex `hash` | “Parents before children” + determinism |
-| `LOG --sort-by=date` | Ascending `timestamp`; ties: lex `hash` | Not “newest first”; ascending aligns with parent-first principle |
-| `LOG --sort-by=author` | Lex `author`; ties: ascending `timestamp` → lex `hash` | Multi-key stable-sort effect |
-| `PATH` graph model (subject §4.5) | Treat commit–parent links as **undirected edges**, BFS. Ties: **lexicographically smallest** hash path string | As stated in subject |
-| `ANCESTORS` | Exclude start commit; list in topological order (parents first); ties: lex `hash` | subject “ancestor” meaning + deterministic output |
-| `SEARCH keyword` matching (subject §4.3) | **Whitespace split + lower normalization**, then **exact token match** (not substring) | subject §4.3 |
-| `SEARCH --author=<name>` matching | **Exact** author string (case-sensitive) | User names are identifiers; lower only for keywords |
-| Result order (SEARCH/ANCESTORS) | Topological (parents first); ties: lex `hash` | Unspecified in subject → determinism |
-| Exit commands (subject §4.1) | `exit` or `quit` (case-insensitive); `Ctrl-D` (EOF) equivalent | subject §2.4 + consistency |
-| Sort algorithm (subject §4.4) | **Merge Sort** implemented directly (key function + stable) | Average and worst O(N log N); **stable** for readable tie handling |
-| Test runner | Standard `unittest` (`python -m unittest discover -s tests -p 'test_*.py' -v`) | .cursorrules §5 Stdlib Test Runner |
-
+| Item                                     | Decision                                                                                                       | Rationale                                                                                         |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Command case (subject §4.1)              | **Case-insensitive** (`INIT`/`init`/`Init` all allowed)                                                        | As stated in subject §4.1                                                                         |
+| Argument parsing (subject §4.1)          | Support **unquoted tokens** and **double-quoted values**; no escape sequences                                  | Subject example (`COMMIT "Add login feature"`) + YAGNI                                            |
+| Option syntax                            | `SEARCH --author=<name>`, `LOG --sort-by=date`, `LOG --sort-by=author` (`=` required, no space)                | Matches subject §4.1 examples; simpler tokenizer                                                  |
+| Hash generation (subject §4.2)           | **Session monotonic counter** → `f"{n:07x}"` 7-digit hex (`0000001`, `0000002`, …)                             | Session uniqueness only; readable output and deterministic lex order for `PATH` ties              |
+| Commit store                             | **dict** (`hash → Commit`)                                                                                     | Subject “e.g. hash map” — average O(1) lookup is enough; custom DS focus is inverted index (§4.3) |
+| Parent representation                    | `Commit.parents: list[str]` (hash strings). Root commit: empty list                                            | Subject §4.2 “zero or more parents”                                                               |
+| timestamp                                | **Monotonic integer sequence** (`Commit` creation order = timestamp). Real clock stored separately for display | Deterministic ties for `LOG --sort-by=date` and topological `LOG`; test determinism               |
+| Display clock                            | Inject `clock: Callable[[], float] = time.time` (tests use `FakeClock`)                                        | .cursorrules §5 Testing Determinism                                                               |
+| HEAD model                               | Single pointer to **branch name**. No detached HEAD                                                            | Within subject commands (`SWITCH branch_name` only), YAGNI                                        |
+| Initial branch                           | `main`                                                                                                         | subject §4.5 INIT                                                                                 |
+| Duplicate `BRANCH` name                  | **Error** (`Branch already exists: <name>`)                                                                    | Safety; subject “standardize errors” spirit                                                       |
+| `SWITCH` to missing branch               | `Unknown branch: <name>`                                                                                       | subject §4.1 standard message                                                                     |
+| `INIT` re-invocation                     | **Reset current session** (discard all commits, branches, inverted index, rebuild)                             | subject §4.5 “initialize repository”                                                              |
+| `LOG` topological output (subject §4.5)  | **Kahn's algorithm** parent→child order. Ties (same in-degree): ascending `timestamp` → lex `hash`             | “Parents before children” + determinism                                                           |
+| `LOG --sort-by=date`                     | Ascending `timestamp`; ties: lex `hash`                                                                        | Not “newest first”; ascending aligns with parent-first principle                                  |
+| `LOG --sort-by=author`                   | Lex `author`; ties: ascending `timestamp` → lex `hash`                                                         | Multi-key stable-sort effect                                                                      |
+| `PATH` graph model (subject §4.5)        | Treat commit–parent links as **undirected edges**, BFS. Ties: **lexicographically smallest** hash path string  | As stated in subject                                                                              |
+| `ANCESTORS`                              | Exclude start commit; list in topological order (parents first); ties: lex `hash`                              | subject “ancestor” meaning + deterministic output                                                 |
+| `SEARCH keyword` matching (subject §4.3) | **Whitespace split + lower normalization**, then **exact token match** (not substring)                         | subject §4.3                                                                                      |
+| `SEARCH --author=<name>` matching        | **Exact** author string (case-sensitive)                                                                       | User names are identifiers; lower only for keywords                                               |
+| Result order (SEARCH/ANCESTORS)          | Topological (parents first); ties: lex `hash`                                                                  | Unspecified in subject → determinism                                                              |
+| Exit commands (subject §4.1)             | `exit` or `quit` (case-insensitive); `Ctrl-D` (EOF) equivalent                                                 | subject §2.4 + consistency                                                                        |
+| REPL command history (optional)          | Stdlib `readline` in-memory only when stdin is a TTY; no file persistence; not a subject requirement           | UX helper; tests use injected `StringIO` (non-interactive path)                                   |
+| Sort algorithm (subject §4.4)            | **Merge Sort** implemented directly (key function + stable)                                                    | Average and worst O(N log N); **stable** for readable tie handling                                |
+| Test runner                              | Standard `unittest` (`python -m unittest discover -s tests -p 'test_*.py' -v`)                                 | .cursorrules §5 Stdlib Test Runner                                                                |
 
 ---
 
@@ -97,44 +96,38 @@ Follows subject §4.2–§4.5 responsibilities (commit graph, inverted index, so
 
 ### 4.1 Commit Node (`commit.py`)
 
-
-| Item | Design |
-| --- | --- |
-| `Commit` | `@dataclass(frozen=True)` — `hash: str`, `message: str`, `author: str`, `timestamp: int`, `parents: tuple[str, ...]` |
-| Immutability | Commits are immutable once created (DAG node semantics). Parents as immutable `tuple` |
-| `HashIssuer` | Monotonic counter → `f"{n:07x}"`. `reset()` on `INIT` |
-| Display time | `Commit` holds monotonic timestamp only. Human-readable time in separate `Repository` dict if needed |
-
+| Item         | Design                                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `Commit`     | `@dataclass(frozen=True)` — `hash: str`, `message: str`, `author: str`, `timestamp: int`, `parents: tuple[str, ...]` |
+| Immutability | Commits are immutable once created (DAG node semantics). Parents as immutable `tuple`                                |
+| `HashIssuer` | Monotonic counter → `f"{n:07x}"`. `reset()` on `INIT`                                                                |
+| Display time | `Commit` holds monotonic timestamp only. Human-readable time in separate `Repository` dict if needed                 |
 
 ### 4.2 Commit Graph Store (inside `repository.py`)
 
 subject §4.2 “repository: fast lookup by hash (e.g. hash map)” via dict.
 
-
-| Class / field | Description |
-| --- | --- |
-| `_commits` | `dict[str, Commit]` — hash → Commit node |
-| `_branches` | `dict[str, str]` — branch name → current commit hash |
-| `_head` | `str` — current branch name |
-| `_author` | `str` — current user |
+| Class / field  | Description                                                                  |
+| -------------- | ---------------------------------------------------------------------------- |
+| `_commits`     | `dict[str, Commit]` — hash → Commit node                                     |
+| `_branches`    | `dict[str, str]` — branch name → current commit hash                         |
+| `_head`        | `str` — current branch name                                                  |
+| `_author`      | `str` — current user                                                         |
 | `_root_hashes` | `list[str]` — root commits (`parents == ()`). Used to seed topological `LOG` |
-| `_issuer` | `HashIssuer` — session counter |
-
+| `_issuer`      | `HashIssuer` — session counter                                               |
 
 > This assignment does **not** forbid built-in dict (subject §4.2). Differentiation is direct inverted index, sort, and graph algorithms (§4.3–§4.5).
 
 ### 4.3 Inverted Index (`inverted_index.py`, subject §4.3)
 
-
-| Item | Design |
-| --- | --- |
-| Methods | `add_commit(commit)`, `search_keyword(token) -> list[str]`, `search_author(name) -> list[str]`, `remove_commit(hash)` (for `INIT` reset) |
-| Internal | `_by_keyword: dict[str, list[str]]`, `_by_author: dict[str, list[str]]` |
-| Tokenize | `commit.message.split()` → each token `lower()` → **dedupe** tokens per commit (set then list) |
-| Order | Preserve hash append order (caller sorts in §5). Determinism is caller's job |
-| Empty | Missing key → `[]` |
-| Private helper | `_tokenize(message) -> set[str]` (.cursorrules §4) |
-
+| Item           | Design                                                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Methods        | `add_commit(commit)`, `search_keyword(token) -> list[str]`, `search_author(name) -> list[str]`, `remove_commit(hash)` (for `INIT` reset) |
+| Internal       | `_by_keyword: dict[str, list[str]]`, `_by_author: dict[str, list[str]]`                                                                  |
+| Tokenize       | `commit.message.split()` → each token `lower()` → **dedupe** tokens per commit (set then list)                                           |
+| Order          | Preserve hash append order (caller sorts in §5). Determinism is caller's job                                                             |
+| Empty          | Missing key → `[]`                                                                                                                       |
+| Private helper | `_tokenize(message) -> set[str]` (.cursorrules §4)                                                                                       |
 
 > “Quick candidates without scanning every commit” — keyword/author dict lookup O(1), then §5 sort only. vs linear scan: single key lookup vs tokenizing every message — explained in evaluation answers (§9).
 
@@ -144,15 +137,13 @@ subject §4.2 “repository: fast lookup by hash (e.g. hash map)” via dict.
 
 Direct implementation to satisfy `sorted()` / `list.sort()` ban. **Merge Sort** (average and worst O(N log N), stable).
 
-
-| Item | Design |
-| --- | --- |
-| Public API | `merge_sort(items: list[T], key: Callable[[T], K] = lambda x: x) -> list[T]` — returns new list |
-| Compare | `<` on `key(item)` — tuples like `(timestamp, hash)` for multi-key |
-| Stable | On tie, **left (earlier) element wins** in merge |
-| Private | `_merge(left, right, key)` |
-| Used by | `LOG --sort-by=...`, topological tie breaks, `SEARCH`/`ANCESTORS` result order, `PATH` tie paths |
-
+| Item       | Design                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| Public API | `merge_sort(items: list[T], key: Callable[[T], K] = lambda x: x) -> list[T]` — returns new list  |
+| Compare    | `<` on `key(item)` — tuples like `(timestamp, hash)` for multi-key                               |
+| Stable     | On tie, **left (earlier) element wins** in merge                                                 |
+| Private    | `_merge(left, right, key)`                                                                       |
+| Used by    | `LOG --sort-by=...`, topological tie breaks, `SEARCH`/`ANCESTORS` result order, `PATH` tie paths |
 
 > Merge Sort: satisfies subject §4.4 explanation of average/worst complexity and **stable sort**. Quick Sort worst O(N²) and usually unstable; Heap Sort unstable.
 
@@ -197,20 +188,18 @@ Combines structures and algorithms. **Pure logic layer** — returns Python valu
 
 ### 7.1 Command Mapping
 
-
-| Method | Behavior |
-| --- | --- |
-| `init(user_name: str) -> None` | Reset all state. Create `main` (no commit until first `COMMIT` — `_branches["main"]` empty; see §7.4). HEAD = `main`. author = `user_name`. Reset index and `HashIssuer`. |
-| `branch(branch_name: str) -> None` | Register current HEAD commit as new branch (error if no commit yet). Duplicate name → `RepoError`. |
-| `switch(branch_name: str) -> None` | Missing → `RepoError`. Else update HEAD. |
-| `commit(message: str) -> Commit` | Error if not initialized. Parent = current HEAD commit hash (or none). Issue hash, update `_commits`, `_branches[head]`, index; return. |
-| `log() -> list[Commit]` | Topological sort all `_commits`, key `(timestamp, hash)` ascending. |
-| `log_sorted(by: Literal["date", "author"])` | `merge_sort` all commits. `date` → `(timestamp, hash)`. `author` → `(author, timestamp, hash)`. |
-| `path(a: str, b: str) -> list[str] \| None` | Undirected BFS shortest path; lex-min tie. |
-| `ancestors(h: str) -> list[Commit]` | Unknown hash → `RepoError`. §6.3 then topological order (exclude self). |
-| `search_keyword(kw: str) -> list[Commit]` | `kw.lower()` index lookup → map to commits → topological order. |
-| `search_author(name: str) -> list[Commit]` | Author index → topological order. |
-
+| Method                                      | Behavior                                                                                                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init(user_name: str) -> None`              | Reset all state. Create `main` (no commit until first `COMMIT` — `_branches["main"]` empty; see §7.4). HEAD = `main`. author = `user_name`. Reset index and `HashIssuer`. |
+| `branch(branch_name: str) -> None`          | Register current HEAD commit as new branch (error if no commit yet). Duplicate name → `RepoError`.                                                                        |
+| `switch(branch_name: str) -> None`          | Missing → `RepoError`. Else update HEAD.                                                                                                                                  |
+| `commit(message: str) -> Commit`            | Error if not initialized. Parent = current HEAD commit hash (or none). Issue hash, update `_commits`, `_branches[head]`, index; return.                                   |
+| `log() -> list[Commit]`                     | Topological sort all `_commits`, key `(timestamp, hash)` ascending.                                                                                                       |
+| `log_sorted(by: Literal["date", "author"])` | `merge_sort` all commits. `date` → `(timestamp, hash)`. `author` → `(author, timestamp, hash)`.                                                                           |
+| `path(a: str, b: str) -> list[str] \| None` | Undirected BFS shortest path; lex-min tie.                                                                                                                                |
+| `ancestors(h: str) -> list[Commit]`         | Unknown hash → `RepoError`. §6.3 then topological order (exclude self).                                                                                                   |
+| `search_keyword(kw: str) -> list[Commit]`   | `kw.lower()` index lookup → map to commits → topological order.                                                                                                           |
+| `search_author(name: str) -> list[Commit]`  | Author index → topological order.                                                                                                                                         |
 
 ### 7.2 Clock Injection
 
@@ -245,41 +234,41 @@ Undirected BFS needs children index:
 
 ### 8.2 Dispatch Table
 
-
-| Input | Call | Success response |
-| --- | --- | --- |
-| `INIT user_name` | `repo.init(user_name)` | `Initialized repository for <user_name>` |
-| `BRANCH branch_name` | `repo.branch(name)` | `Created branch <name> at <hash>` |
-| `SWITCH branch_name` | `repo.switch(name)` | `Switched to branch <name>` |
-| `COMMIT message` | `repo.commit(message)` | `Committed <hash>` |
-| `LOG` | `repo.log()` | One summary line per commit (§9.2) |
-| `LOG --sort-by=date` | `repo.log_sorted("date")` | Same format, ascending timestamp |
-| `LOG --sort-by=author` | `repo.log_sorted("author")` | Same format, ascending author |
-| `PATH commit1 commit2` | `repo.path(c1, c2)` | Hashes joined with `->`, or `No path` |
-| `ANCESTORS commit_hash` | `repo.ancestors(h)` | One line per ancestor, exclude self |
-| `SEARCH keyword` | `repo.search_keyword(kw)` | Matching commits, or `No results` |
-| `SEARCH --author=name` | `repo.search_author(name)` | Same format |
-| `exit` / `quit` | End REPL | No output, exit code `0` |
-
+| Input                   | Call                        | Success response                         |
+| ----------------------- | --------------------------- | ---------------------------------------- |
+| `INIT user_name`        | `repo.init(user_name)`      | `Initialized repository for <user_name>` |
+| `BRANCH branch_name`    | `repo.branch(name)`         | `Created branch <name> at <hash>`        |
+| `SWITCH branch_name`    | `repo.switch(name)`         | `Switched to branch <name>`              |
+| `COMMIT message`        | `repo.commit(message)`      | `Committed <hash>`                       |
+| `LOG`                   | `repo.log()`                | One summary line per commit (§9.2)       |
+| `LOG --sort-by=date`    | `repo.log_sorted("date")`   | Same format, ascending timestamp         |
+| `LOG --sort-by=author`  | `repo.log_sorted("author")` | Same format, ascending author            |
+| `PATH commit1 commit2`  | `repo.path(c1, c2)`         | Hashes joined with `->`, or `No path`    |
+| `ANCESTORS commit_hash` | `repo.ancestors(h)`         | One line per ancestor, exclude self      |
+| `SEARCH keyword`        | `repo.search_keyword(kw)`   | Matching commits, or `No results`        |
+| `SEARCH --author=name`  | `repo.search_author(name)`  | Same format                              |
+| `exit` / `quit`         | End REPL                    | No output, exit code `0`                 |
 
 ### 8.3 Error Output (subject §4.1)
 
 Print `RepoError` / `CommandError` message on one line. Fixed messages per this plan.
 
-
-| Situation | Output |
-| --- | --- |
-| Unknown command | `Unknown command: <cmd>` |
-| Bad arg count/type | `Invalid args` |
-| Unknown branch | `Unknown branch: <name>` |
-| Unknown commit hash | `Unknown commit: <hash>` |
-| Command before `INIT` | `Repository not initialized` |
+| Situation                    | Output                              |
+| ---------------------------- | ----------------------------------- |
+| Unknown command              | `Unknown command: <cmd>`            |
+| Bad arg count/type           | `Invalid args`                      |
+| Unknown branch               | `Unknown branch: <name>`            |
+| Unknown commit hash          | `Unknown commit: <hash>`            |
+| Command before `INIT`        | `Repository not initialized`        |
 | `BRANCH` before first commit | `Cannot branch before first commit` |
-| Duplicate `BRANCH` | `Branch already exists: <name>` |
-| Invalid `LOG --sort-by` | `Invalid args` (only date/author) |
-
+| Duplicate `BRANCH`           | `Branch already exists: <name>`     |
+| Invalid `LOG --sort-by`      | `Invalid args` (only date/author)   |
 
 `EOF` (`Ctrl-D`) same as `exit`.
+
+### 8.4 Optional: readline history (not required by subject)
+
+When `run_repl()` uses default `sys.stdin` on a TTY and `import readline` succeeds, use `input(PROMPT)` so **Up/Down** recall prior lines. Record each non-blank line with `readline.add_history()` (in-memory only; no `read_history_file` / `write_history_file`). Injected stdin (`unittest` / pipes) keeps the scripted `write` + `readline()` path with no history side effects.
 
 ---
 
@@ -515,18 +504,16 @@ Checklist:
 
 ## 12. Risks / Deferred Decisions
 
-
-| Item | Risk | Mitigation |
-| --- | --- | --- |
-| `PATH` lex-min path | Enumerating all paths explodes | BFS backtrack with lex-min predecessor only (§6.2) |
-| `SEARCH` token rules | Substring vs token ambiguity | **Exact token match** locked (§2), documented in README/plan |
-| `INIT` hash counter | “New session” vs “restart” | `HashIssuer.reset()`; define uniqueness as “since last `INIT`” in README |
-| `BRANCH`/`SWITCH` before first commit | `_branches["main"] is None` | `BRANCH` rejected; `SWITCH main` only (§7.4) |
-| Topological ties | Unsorted enqueue → nondeterministic | `merge_sort` at every enqueue (§6.1) + regression test |
-| `clock` in output | Nondeterministic real time | Mandatory `FakeClock` in CLI output tests |
-| Heavy `key` in merge sort | Key recomputed each compare | Fine at assignment scale; optional Schwartzian cache |
-| Bonus `merge` | Two parents affect topo/ancestors/PATH | Update plan + diamond/merge regression tests |
-
+| Item                                  | Risk                                   | Mitigation                                                               |
+| ------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------ |
+| `PATH` lex-min path                   | Enumerating all paths explodes         | BFS backtrack with lex-min predecessor only (§6.2)                       |
+| `SEARCH` token rules                  | Substring vs token ambiguity           | **Exact token match** locked (§2), documented in README/plan             |
+| `INIT` hash counter                   | “New session” vs “restart”             | `HashIssuer.reset()`; define uniqueness as “since last `INIT`” in README |
+| `BRANCH`/`SWITCH` before first commit | `_branches["main"] is None`            | `BRANCH` rejected; `SWITCH main` only (§7.4)                             |
+| Topological ties                      | Unsorted enqueue → nondeterministic    | `merge_sort` at every enqueue (§6.1) + regression test                   |
+| `clock` in output                     | Nondeterministic real time             | Mandatory `FakeClock` in CLI output tests                                |
+| Heavy `key` in merge sort             | Key recomputed each compare            | Fine at assignment scale; optional Schwartzian cache                     |
+| Bonus `merge`                         | Two parents affect topo/ancestors/PATH | Update plan + diamond/merge regression tests                             |
 
 ---
 

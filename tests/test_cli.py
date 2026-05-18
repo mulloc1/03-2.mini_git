@@ -312,3 +312,20 @@ class TestExit(unittest.TestCase):
         stdout = StringIO()
         run_repl(repo, EofStdin(), stdout)
         self.assertIn("mini-git> ", stdout.getvalue())
+
+    # StringIO 주입(비대화형) 경로에서는 add_history를 호출하지 않는다.
+    def test_non_interactive_does_not_record_history(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        mock_readline = MagicMock()
+        with patch("mini_git.cli._readline", mock_readline):
+            _run_script("init alice\nexit\n")
+        mock_readline.add_history.assert_not_called()
+
+    # readline 모듈이 없어도 REPL이 정상 동작하는지 검증한다.
+    def test_readline_unavailable_still_runs(self) -> None:
+        from unittest.mock import patch
+
+        with patch("mini_git.cli._readline", None):
+            raw = _run_script("quit\n")
+        self.assertNotIn("Unknown command", raw)

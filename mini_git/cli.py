@@ -6,6 +6,11 @@ import time
 from collections.abc import Callable
 from typing import IO, TextIO
 
+try:
+    import readline as _readline
+except ImportError:
+    _readline = None
+
 from mini_git.commit import Commit
 from mini_git.errors import CommandError, RepoError
 from mini_git.repository import Repository
@@ -182,6 +187,30 @@ def dispatch(repo: Repository, tokens: list[str], stdout: TextIO) -> bool:
     return True
 
 
+def _record_history(line: str) -> None:
+    """Append one non-empty line to the in-memory readline history."""
+    if _readline is None or not line.strip():
+        return
+    _readline.add_history(line)
+
+
+def _read_input_line(
+    input_stream: IO[str],
+    output_stream: TextIO,
+    *,
+    interactive: bool,
+) -> str | None:
+    """Read one REPL line; return None on scripted EOF."""
+    if interactive:
+        return input(PROMPT)
+    output_stream.write(PROMPT)
+    output_stream.flush()
+    raw = input_stream.readline()
+    if raw == "":
+        return None
+    return raw.rstrip("\n")
+
+
 def run_repl(
     repo: Repository,
     stdin: IO[str] | None = None,
@@ -192,19 +221,26 @@ def run_repl(
 
     input_stream = stdin if stdin is not None else sys.stdin
     output_stream = stdout if stdout is not None else sys.stdout
+    interactive = (
+        stdin is None
+        and stdout is None
+        and input_stream.isatty()
+        and _readline is not None
+    )
     while True:
         try:
-            output_stream.write(PROMPT)
-            output_stream.flush()
-            line = input_stream.readline()
+            line = _read_input_line(
+                input_stream, output_stream, interactive=interactive
+            )
         except EOFError:
             break
         except KeyboardInterrupt:
             output_stream.write("\n")
             break
-        if line == "":
+        if line is None:
             break
-        line = line.rstrip("\n")
+        if interactive:
+            _record_history(line)
         if not line.strip():
             continue
         tokens = tokenize(line)
