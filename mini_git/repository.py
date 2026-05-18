@@ -135,6 +135,12 @@ class Repository:
             raise RepoError(f"Unknown commit: {commit_hash}")
         return self._commits[commit_hash]
 
+    def human_clock_at(self, commit_hash: str) -> float:
+        """Return the human-readable clock value stored at commit creation."""
+        self._require_initialized()
+        self.get_commit(commit_hash)
+        return self._human_clock_at[commit_hash]
+
     def log(self) -> list[Commit]:
         """Return all commits in parent-before-child topological order."""
         self._require_initialized()
