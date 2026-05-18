@@ -1,6 +1,5 @@
 """Repository engine combining commit graph, branches, and inverted index.
 
-Phase 5 surface (subject §4.5): ``init`` / ``branch`` / ``switch`` / ``commit``.
 Pure logic layer — returns Python values and raises :class:`RepoError`
 on precondition violations. CLI layer is responsible for formatting.
 """
@@ -8,13 +7,17 @@ on precondition violations. CLI layer is responsible for formatting.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from mini_git.commit import Commit, HashIssuer
 from mini_git.errors import RepoError
+from mini_git.graph import ancestors as graph_ancestors
+from mini_git.graph import shortest_path, topological_order
 from mini_git.inverted_index import InvertedIndex
+from mini_git.sort import merge_sort
 
 DEFAULT_BRANCH = "main"
+_LOG_SORT_KEYS = ("date", "author")
 
 
 class Repository:
@@ -131,6 +134,65 @@ class Repository:
         if commit_hash not in self._commits:
             raise RepoError(f"Unknown commit: {commit_hash}")
         return self._commits[commit_hash]
+
+    def log(self) -> list[Commit]:
+        """Return all commits in parent-before-child topological order."""
+        self._require_initialized()
+        return self._topo_commits(self._commits)
+
+    def log_sorted(self, by: str) -> list[Commit]:
+        """Return all commits sorted by ``date`` or ``author`` via merge sort."""
+        self._require_initialized()
+        if by not in _LOG_SORT_KEYS:
+            raise RepoError(f"Invalid sort key: {by}")
+        commits = list(self._commits.values())
+        if by == "date":
+            return merge_sort(commits, key=lambda c: (c.timestamp, c.hash))
+        return merge_sort(
+            commits, key=lambda c: (c.author, c.timestamp, c.hash)
+        )
+
+    def path(self, start: str, goal: str) -> list[str] | None:
+        """Return lex-min shortest undirected path between two commits."""
+        self._require_initialized()
+        self.get_commit(start)
+        self.get_commit(goal)
+
+        def neighbors(commit_hash: str) -> list[str]:
+            commit = self._commits[commit_hash]
+            return list(commit.parents) + self._children.get(commit_hash, [])
+
+        return shortest_path(start, goal, neighbors)
+
+    def ancestors(self, commit_hash: str) -> list[Commit]:
+        """Return all ancestors of ``commit_hash`` in topological order."""
+        self._require_initialized()
+        self.get_commit(commit_hash)
+        ancestor_hashes = graph_ancestors(
+            commit_hash,
+            get_parents=lambda h: self._commits[h].parents,
+        )
+        return self._topo_commits(ancestor_hashes)
+
+    def search_keyword(self, keyword: str) -> list[Commit]:
+        """Return commits whose message contains the exact token."""
+        self._require_initialized()
+        hashes = self._index.search_keyword(keyword)
+        return self._topo_commits(hashes)
+
+    def search_author(self, name: str) -> list[Commit]:
+        """Return commits by exact author name (case-sensitive)."""
+        self._require_initialized()
+        hashes = self._index.search_author(name)
+        return self._topo_commits(hashes)
+
+    def _topo_commits(self, hashes: Iterable[str]) -> list[Commit]:
+        ordered = topological_order(
+            hashes,
+            get_parents=lambda h: self._commits[h].parents,
+            get_sort_key=lambda h: (self._commits[h].timestamp, h),
+        )
+        return [self._commits[h] for h in ordered]
 
     def _current_branch(self) -> str:
         self._require_initialized()

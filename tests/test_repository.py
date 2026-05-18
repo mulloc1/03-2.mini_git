@@ -1,4 +1,4 @@
-"""Tests for mini_git.repository — Phase 5 (init/branch/switch/commit)."""
+"""Tests for mini_git.repository."""
 
 from __future__ import annotations
 
@@ -161,3 +161,76 @@ class TestGetCommit(unittest.TestCase):
         repo.init("alice")
         c = repo.commit("first")
         self.assertEqual(repo.get_commit(c.hash), c)
+
+
+class TestLog(unittest.TestCase):
+    # 커밋 없는 저장소에서 log()가 빈 리스트를 반환하는지 검증한다.
+    def test_log_empty_repo(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        self.assertEqual(repo.log(), [])
+
+    # 선형 체인에서 log()가 부모→자식 순서인지 검증한다.
+    def test_log_linear_chain(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        b = repo.commit("b")
+        c = repo.commit("c")
+        self.assertEqual(
+            [commit.hash for commit in repo.log()],
+            [a.hash, b.hash, c.hash],
+        )
+
+    # 브랜치 fork 후 log()가 fork-point 이후 자식들을 timestamp 순으로 정렬하는지 검증한다.
+    def test_log_branch_fork(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        b = repo.commit("b")
+        repo.branch("feature")
+        main_tip = repo.commit("main-third")
+        repo.switch("feature")
+        feature_tip = repo.commit("feature-third")
+        hashes = [commit.hash for commit in repo.log()]
+        self.assertEqual(len(hashes), 4)
+        self.assertEqual(hashes[0], a.hash)
+        self.assertEqual(hashes[1], b.hash)
+        self.assertLess(hashes.index(b.hash), hashes.index(main_tip.hash))
+        self.assertLess(hashes.index(b.hash), hashes.index(feature_tip.hash))
+        self.assertEqual(
+            hashes[2:],
+            sorted([main_tip.hash, feature_tip.hash], key=lambda h: h),
+        )
+
+    # log_sorted("date")가 timestamp 오름차순인지 검증한다.
+    def test_log_sorted_by_date(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        b = repo.commit("b")
+        c = repo.commit("c")
+        self.assertEqual(
+            [commit.hash for commit in repo.log_sorted("date")],
+            [a.hash, b.hash, c.hash],
+        )
+
+    # log_sorted("author")가 author→timestamp→hash 순인지 검증한다.
+    def test_log_sorted_by_author(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        alice_commit = repo.commit("from alice")
+        repo._author = "bob"
+        bob_commit = repo.commit("from bob")
+        self.assertEqual(
+            [commit.hash for commit in repo.log_sorted("author")],
+            [alice_commit.hash, bob_commit.hash],
+        )
+
+    # log_sorted에 잘못된 키를 넘기면 RepoError가 발생하는지 검증한다.
+    def test_log_sorted_invalid_key_raises(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("a")
+        with self.assertRaises(RepoError):
+            repo.log_sorted("hash")
