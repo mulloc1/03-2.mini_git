@@ -335,6 +335,96 @@ class TestAncestors(unittest.TestCase):
             repo.ancestors("9999999")
 
 
+class TestMerge(unittest.TestCase):
+    # MERGE가 두 부모를 가진 커밋을 생성하고 현재 브랜치를 갱신하는지 검증한다.
+    def test_merge_creates_two_parent_commit(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("a")
+        fork_point = repo.commit("b")
+        repo.branch("feature")
+        current_head = repo.commit("main-third").hash
+        repo.switch("feature")
+        target_head = repo.commit("feature-third").hash
+        repo.switch("main")
+        merge_commit = repo.merge("feature")
+        self.assertEqual(merge_commit.parents, (current_head, target_head))
+        self.assertEqual(merge_commit.message, "Merge branch feature")
+        self.assertEqual(repo.head_commit(), merge_commit.hash)
+
+    # MERGE 후 _children에 두 부모 모두 merge hash가 등록되는지 검증한다.
+    def test_merge_updates_children_for_both_parents(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("a")
+        repo.commit("b")
+        repo.branch("feature")
+        current_head = repo.commit("main-third").hash
+        repo.switch("feature")
+        target_head = repo.commit("feature-third").hash
+        repo.switch("main")
+        merge_commit = repo.merge("feature")
+        self.assertIn(merge_commit.hash, repo._children[current_head])
+        self.assertIn(merge_commit.hash, repo._children[target_head])
+
+    # merge commit ANCESTORS에 대상 브랜치 이력이 포함되는지 검증한다.
+    def test_merge_ancestors_include_target_branch_history(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        a = repo.commit("a")
+        b = repo.commit("b")
+        repo.branch("feature")
+        repo.commit("main-third")
+        repo.switch("feature")
+        feature_tip = repo.commit("feature-third")
+        repo.switch("main")
+        merge_commit = repo.merge("feature")
+        ancestor_hashes = {commit.hash for commit in repo.ancestors(merge_commit.hash)}
+        self.assertIn(a.hash, ancestor_hashes)
+        self.assertIn(b.hash, ancestor_hashes)
+        self.assertIn(feature_tip.hash, ancestor_hashes)
+
+    # 현재 브랜치와 동일한 이름으로 MERGE 시 RepoError가 발생하는지 검증한다.
+    def test_merge_self_raises(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("a")
+        with self.assertRaises(RepoError) as ctx:
+            repo.merge("main")
+        self.assertEqual(str(ctx.exception), "Cannot merge a branch with itself")
+
+    # 미존재 브랜치 MERGE 시 Unknown branch 메시지를 반환하는지 검증한다.
+    def test_merge_unknown_branch_raises(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("a")
+        with self.assertRaises(RepoError) as ctx:
+            repo.merge("missing")
+        self.assertEqual(str(ctx.exception), "Unknown branch: missing")
+
+    # 대상 브랜치에 커밋이 없으면 Cannot merge before first commit을 반환하는지 검증한다.
+    def test_merge_before_first_commit_raises(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("a")
+        repo._branches["empty"] = None
+        with self.assertRaises(RepoError) as ctx:
+            repo.merge("empty")
+        self.assertEqual(str(ctx.exception), "Cannot merge before first commit")
+
+    # 대상 브랜치 HEAD가 현재 HEAD의 조상이면 Already up to date를 반환하는지 검증한다.
+    def test_merge_already_up_to_date_raises(self) -> None:
+        repo = make_repo()
+        repo.init("alice")
+        repo.commit("a")
+        repo.commit("b")
+        repo.branch("feature")
+        repo.commit("main-third")
+        with self.assertRaises(RepoError) as ctx:
+            repo.merge("feature")
+        self.assertEqual(str(ctx.exception), "Already up to date")
+
+
 class TestSearchKeyword(unittest.TestCase):
     # 키워드 exact token 매칭 결과가 토폴로지 순서인지 검증한다.
     def test_search_keyword_topological_order(self) -> None:

@@ -110,6 +110,45 @@ class Repository:
         self._index.add_commit(commit)
         return commit
 
+    def merge(self, branch_name: str) -> Commit:
+        """Create a two-parent merge commit on the current branch and return it."""
+        self._require_initialized()
+        current_branch = self._current_branch()
+        if branch_name not in self._branches:
+            raise RepoError(f"Unknown branch: {branch_name}")
+        if branch_name == current_branch:
+            raise RepoError("Cannot merge a branch with itself")
+
+        current_head = self._branches[current_branch]
+        target_head = self._branches[branch_name]
+        if current_head is None or target_head is None:
+            raise RepoError("Cannot merge before first commit")
+
+        ancestor_hashes = graph_ancestors(
+            current_head,
+            get_parents=lambda h: self._commits[h].parents,
+        )
+        if target_head in ancestor_hashes:
+            raise RepoError("Already up to date")
+
+        new_hash = self._issuer.issue()
+        self._timestamp_counter += 1
+        commit = Commit(
+            hash=new_hash,
+            message=f"Merge branch {branch_name}",
+            author=self._author or "",
+            timestamp=self._timestamp_counter,
+            parents=(current_head, target_head),
+        )
+
+        self._commits[new_hash] = commit
+        self._branches[current_branch] = new_hash
+        self._human_clock_at[new_hash] = self._clock()
+        self._children.setdefault(current_head, []).append(new_hash)
+        self._children.setdefault(target_head, []).append(new_hash)
+        self._index.add_commit(commit)
+        return commit
+
     @property
     def head(self) -> str | None:
         """Current branch name, or ``None`` if the repository is uninitialized."""
