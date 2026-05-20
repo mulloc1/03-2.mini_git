@@ -190,6 +190,17 @@ def _handle_diff(repo: Repository, args: list[str], stdout: TextIO) -> None:
         _write_line(stdout, f"{_DIFF_PREFIX[record.kind]}{record.text}")
 
 
+def _handle_merge(repo: Repository, args: list[str], stdout: TextIO) -> None:
+    if len(args) != 1:
+        raise CommandError("Invalid args")
+    current_branch = repo.head
+    commit = repo.merge(args[0])
+    _write_line(
+        stdout,
+        f"Merged {args[0]} into {current_branch} as {commit.hash}",
+    )
+
+
 _Handler = Callable[[Repository, list[str], TextIO], None]
 
 _HANDLERS: dict[str, _Handler] = {
@@ -202,6 +213,7 @@ _HANDLERS: dict[str, _Handler] = {
     "ancestors": _handle_ancestors,
     "search": _handle_search,
     "diff": _handle_diff,
+    "merge": _handle_merge,
 }
 
 

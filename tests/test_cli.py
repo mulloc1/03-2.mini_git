@@ -314,6 +314,72 @@ class TestDiffCli(unittest.TestCase):
             self.assertEqual(lines, [f"Cannot read file: {tmpdir}"])
 
 
+_DIAMOND_MERGE_SCRIPT = (
+    "INIT alice\n"
+    "COMMIT a\n"
+    "COMMIT b\n"
+    "BRANCH feature\n"
+    "COMMIT main-third\n"
+    "SWITCH feature\n"
+    "COMMIT feature-third\n"
+    "SWITCH main\n"
+)
+
+
+class TestMergeCli(unittest.TestCase):
+    # diamond 시나리오 MERGE 성공 메시지가 plan §5.3 형식인지 검증한다.
+    def test_merge_success_message(self) -> None:
+        lines = _response_lines(
+            _run_script(_DIAMOND_MERGE_SCRIPT + "MERGE feature\nexit\n")
+        )
+        self.assertEqual(lines[-1], "Merged feature into main as 0000005")
+
+    # 같은 브랜치 MERGE 시 Cannot merge a branch with itself를 출력하는지 검증한다.
+    def test_merge_self_error(self) -> None:
+        script = "INIT alice\nCOMMIT a\nMERGE main\nexit\n"
+        lines = _response_lines(_run_script(script))
+        self.assertEqual(lines[-1], "Cannot merge a branch with itself")
+
+    # 대상 브랜치가 이미 조상이면 Already up to date를 출력하는지 검증한다.
+    def test_merge_already_up_to_date(self) -> None:
+        script = (
+            "INIT alice\n"
+            "COMMIT a\n"
+            "COMMIT b\n"
+            "BRANCH feature\n"
+            "COMMIT main-third\n"
+            "MERGE feature\n"
+            "exit\n"
+        )
+        lines = _response_lines(_run_script(script))
+        self.assertEqual(lines[-1], "Already up to date")
+
+    # 미존재 브랜치 MERGE 시 Unknown branch 메시지를 출력하는지 검증한다.
+    def test_merge_unknown_branch(self) -> None:
+        script = "INIT alice\nCOMMIT a\nMERGE missing\nexit\n"
+        lines = _response_lines(_run_script(script))
+        self.assertEqual(lines[-1], "Unknown branch: missing")
+
+    # MERGE 인자 개수가 맞지 않으면 Invalid args를 출력하는지 검증한다.
+    def test_merge_invalid_args(self) -> None:
+        lines_zero = _response_lines(_run_script("MERGE\nexit\n"))
+        lines_two = _response_lines(_run_script("MERGE a b\nexit\n"))
+        self.assertEqual(lines_zero, ["Invalid args"])
+        self.assertEqual(lines_two, ["Invalid args"])
+
+    # MERGE 후 LOG에서 merge commit이 두 부모보다 뒤에 오는지 검증한다.
+    def test_log_after_merge_topology_regression(self) -> None:
+        script = _DIAMOND_MERGE_SCRIPT + "MERGE feature\nLOG\nexit\n"
+        lines = _response_lines(_run_script(script))
+        log_hashes = [line.split()[0] for line in lines if line.startswith("0000")]
+        self.assertEqual(log_hashes[-1], "0000005")
+        idx_main = log_hashes.index("0000003")
+        idx_feature = log_hashes.index("0000004")
+        idx_merge = log_hashes.index("0000005")
+        self.assertLess(idx_main, idx_merge)
+        self.assertLess(idx_feature, idx_merge)
+
+
 class TestErrors(unittest.TestCase):
     # 미지정 명령이 Unknown command를 출력하는지 검증한다.
     def test_unknown_command(self) -> None:
