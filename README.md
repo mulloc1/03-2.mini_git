@@ -184,8 +184,14 @@ mini-git> PATH 0000001 0000003
 ```
 03-2.mini_git/
 ├── main.py              # 진입점 (mini_git.main 위임)
+├── scripts/
+│   └── bench_sort.py    # 정렬 알고리즘 벤치마크 (보너스 §5)
+├── docs/
+│   └── insights/
+│       └── sort_performance.md
 ├── mini_git/
 │   ├── commit.py        # Commit, HashIssuer
+│   ├── diff.py          # LCS 줄 단위 diff (보너스)
 │   ├── inverted_index.py
 │   ├── graph.py         # topological_order, shortest_path, ancestors
 │   ├── sort.py          # merge_sort (stable)
@@ -248,10 +254,38 @@ mini-git> exit
 
 ---
 
-## 보너스 (미구현)
+## 보너스 명령
 
-[docs/subject.md](docs/subject.md) §5의 선택 과제는 아직 포함하지 않았습니다.
+[docs/subject.md](docs/subject.md) §5 선택 과제(diff, merge, 정렬 성능 비교)를 포함합니다. 명령어는 코어와 같이 **대소문자를 구분하지 않습니다**.
 
-- `diff <file1> <file2>` — 줄 단위 LCS diff
-- `merge <branch_name>` — 두 부모를 가진 머지 커밋
-- 정렬 성능 측정·문서화
+### DIFF
+
+로컬 두 텍스트 파일을 줄 단위 LCS diff로 비교합니다. 경로에 공백이 있으면 큰따옴표로 감쌉니다.
+
+```text
+mini-git> DIFF a.txt b.txt
+  shared header
+- removed line
++ added line
+  shared footer
+```
+
+동일하면 `Files are identical`. 오류: `Invalid args`, `File not found: <path>`, `Cannot read file: <path>`.
+
+### MERGE
+
+현재 브랜치 HEAD와 대상 브랜치 HEAD를 **두 부모**로 하는 머지 커밋을 현재 브랜치에 만듭니다. 기본 메시지는 `Merge branch <branch_name>`입니다.
+
+```text
+mini-git> MERGE feature
+Merged feature into main as 0000005
+```
+
+거절: `Cannot merge a branch with itself`, `Already up to date`, `Unknown branch: <name>`, `Cannot merge before first commit`.
+
+### 정렬 성능
+
+Bubble / Insertion / Quick / Merge 네 알고리즘을 입력 패턴·크기별로 비교한 결과입니다. 비교 횟수는 시드 고정으로 **결정적**이며, 벽시계(ms)는 참고용입니다. 코어에서 `merge_sort`를 선택한 이유(안정 정렬, 모든 패턴에서 O(N log N))를 수치로 뒷받침합니다.
+
+- 결과: [docs/insights/sort_performance.md](docs/insights/sort_performance.md)
+- 재생성: `python3 scripts/bench_sort.py` (N=50_000에서 O(N²) 알고리즘은 수십 분 걸릴 수 있음)
