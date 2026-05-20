@@ -12,12 +12,14 @@ except ImportError:
     _readline = None
 
 from mini_git.commit import Commit
+from mini_git.diff import diff_lines
 from mini_git.errors import CommandError, RepoError
 from mini_git.repository import Repository
 
 PROMPT = "mini-git> "
 _EXIT_COMMANDS = frozenset({"exit", "quit"})
 _LOG_SORT_OPTIONS = frozenset({"date", "author"})
+_DIFF_PREFIX = {"common": "  ", "added": "+ ", "deleted": "- "}
 
 
 def tokenize(line: str) -> list[str]:
@@ -159,6 +161,35 @@ def _handle_search(repo: Repository, args: list[str], stdout: TextIO) -> None:
     _write_commits(repo, commits, stdout)
 
 
+def _read_diff_file(path: str) -> list[str]:
+    try:
+        with open(path, encoding="utf-8") as handle:
+            raw = handle.read()
+    except FileNotFoundError as exc:
+        raise CommandError(f"File not found: {path}") from exc
+    except (OSError, UnicodeDecodeError) as exc:
+        raise CommandError(f"Cannot read file: {path}") from exc
+
+    parts = raw.split("\n")
+    if parts and parts[-1] == "":
+        parts.pop()
+    return [part.rstrip("\r") for part in parts]
+
+
+def _handle_diff(repo: Repository, args: list[str], stdout: TextIO) -> None:
+    _ = repo
+    if len(args) != 2:
+        raise CommandError("Invalid args")
+    a_lines = _read_diff_file(args[0])
+    b_lines = _read_diff_file(args[1])
+    records = diff_lines(a_lines, b_lines)
+    if all(record.kind == "common" for record in records):
+        _write_line(stdout, "Files are identical")
+        return
+    for record in records:
+        _write_line(stdout, f"{_DIFF_PREFIX[record.kind]}{record.text}")
+
+
 _Handler = Callable[[Repository, list[str], TextIO], None]
 
 _HANDLERS: dict[str, _Handler] = {
@@ -170,6 +201,7 @@ _HANDLERS: dict[str, _Handler] = {
     "path": _handle_path,
     "ancestors": _handle_ancestors,
     "search": _handle_search,
+    "diff": _handle_diff,
 }
 
 

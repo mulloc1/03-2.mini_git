@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 import time
 import unittest
 from io import StringIO
@@ -245,6 +247,71 @@ class TestSearch(unittest.TestCase):
         script = "INIT alice\nCOMMIT hello\nSEARCH missing\nexit\n"
         lines = _response_lines(_run_script(script))
         self.assertEqual(lines[-1], "No results")
+
+
+class TestDiffCli(unittest.TestCase):
+    def _write(self, root: str, name: str, content: str) -> str:
+        path = os.path.join(root, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(content)
+        return path
+
+    # DIFF가 공통/삭제/추가 줄을 접두사와 함께 순서대로 출력하는지 검증한다.
+    def test_diff_outputs_prefixed_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            a_path = self._write(tmpdir, "a.txt", "h\nx\nf\n")
+            b_path = self._write(tmpdir, "b.txt", "h\ny\nf\n")
+            lines = _response_lines(_run_script(f'DIFF "{a_path}" "{b_path}"\nexit\n'))
+            self.assertEqual(lines, ["  h", "- x", "+ y", "  f"])
+
+    # 두 파일 내용이 같을 때 Files are identical를 출력하는지 검증한다.
+    def test_diff_identical_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            a_path = self._write(tmpdir, "same.txt", "line1\nline2\n")
+            lines = _response_lines(
+                _run_script(f'DIFF "{a_path}" "{a_path}"\nexit\n')
+            )
+            self.assertEqual(lines, ["Files are identical"])
+
+    # 두 파일이 모두 빈 파일일 때 Files are identical를 출력하는지 검증한다.
+    def test_diff_both_empty_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            a_path = self._write(tmpdir, "empty_a.txt", "")
+            b_path = self._write(tmpdir, "empty_b.txt", "")
+            lines = _response_lines(_run_script(f'DIFF "{a_path}" "{b_path}"\nexit\n'))
+            self.assertEqual(lines, ["Files are identical"])
+
+    # 한쪽만 trailing newline이 있어도 동일 파일로 처리되는지 검증한다.
+    def test_diff_trailing_newline_normalized(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            a_path = self._write(tmpdir, "a.txt", "a\nb")
+            b_path = self._write(tmpdir, "b.txt", "a\nb\n")
+            lines = _response_lines(_run_script(f'DIFF "{a_path}" "{b_path}"\nexit\n'))
+            self.assertEqual(lines, ["Files are identical"])
+
+    # 미존재 파일 경로에 대해 File not found 메시지를 출력하는지 검증한다.
+    def test_diff_file_not_found(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            a_path = self._write(tmpdir, "a.txt", "hello\n")
+            missing_path = os.path.join(tmpdir, "missing.txt")
+            lines = _response_lines(
+                _run_script(f'DIFF "{a_path}" "{missing_path}"\nexit\n')
+            )
+            self.assertEqual(lines, [f"File not found: {missing_path}"])
+
+    # 인자 개수가 맞지 않으면 Invalid args를 출력하는지 검증한다.
+    def test_diff_invalid_args(self) -> None:
+        lines_one = _response_lines(_run_script("DIFF only_one_arg\nexit\n"))
+        lines_zero = _response_lines(_run_script("DIFF\nexit\n"))
+        self.assertEqual(lines_one, ["Invalid args"])
+        self.assertEqual(lines_zero, ["Invalid args"])
+
+    # 디렉터리 경로를 파일로 열 때 Cannot read file 메시지를 출력하는지 검증한다.
+    def test_diff_cannot_read_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            a_path = self._write(tmpdir, "a.txt", "hello\n")
+            lines = _response_lines(_run_script(f'DIFF "{a_path}" "{tmpdir}"\nexit\n'))
+            self.assertEqual(lines, [f"Cannot read file: {tmpdir}"])
 
 
 class TestErrors(unittest.TestCase):
