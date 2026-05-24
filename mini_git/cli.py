@@ -27,29 +27,31 @@ def tokenize(line: str) -> list[str]:
     tokens: list[str] = []
     index = 0
     length = len(line)
+
+    def read_quoted() -> str:
+        nonlocal index
+        index += 1
+        start = index
+        while index < length and line[index] != '"':
+            index += 1
+        if index >= length:
+            raise CommandError("Unclosed quote")
+        content = line[start:index]
+        index += 1
+        return content
+
     while index < length:
         while index < length and line[index].isspace():
             index += 1
         if index >= length:
             break
         if line[index] == '"':
-            index += 1
-            start = index
-            while index < length and line[index] != '"':
-                index += 1
-            tokens.append(line[start:index])
-            if index < length:
-                index += 1
+            tokens.append(read_quoted())
         else:
             parts: list[str] = []
             while index < length and not line[index].isspace():
                 if line[index] == '"':
-                    index += 1
-                    while index < length and line[index] != '"':
-                        parts.append(line[index])
-                        index += 1
-                    if index < length:
-                        index += 1
+                    parts.append(read_quoted())
                 else:
                     parts.append(line[index])
                     index += 1
@@ -282,13 +284,13 @@ def run_repl(
             _record_history(line)
         if not line.strip():
             continue
-        tokens = tokenize(line)
-        if not tokens:
-            continue
-        command = tokens[0].lower()
-        if command in _EXIT_COMMANDS:
-            break
         try:
+            tokens = tokenize(line)
+            if not tokens:
+                continue
+            command = tokens[0].lower()
+            if command in _EXIT_COMMANDS:
+                break
             if not dispatch(repo, tokens, output_stream):
                 break
         except KeyboardInterrupt:

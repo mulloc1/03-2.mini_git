@@ -11,6 +11,7 @@ from io import StringIO
 from helpers import FakeClock, make_repo
 
 from mini_git.cli import format_commit, run_repl, tokenize
+from mini_git.errors import CommandError
 from mini_git.main import main
 from mini_git.repository import Repository
 
@@ -54,6 +55,25 @@ class TestTokenize(unittest.TestCase):
             tokenize('SEARCH --author="Alice Liddell"'),
             ["SEARCH", "--author=Alice Liddell"],
         )
+
+    # 닫히지 않은 선행 따옴표가 CommandError를 발생시키는지 검증한다.
+    def test_tokenize_unclosed_leading_quote_raises(self) -> None:
+        with self.assertRaises(CommandError) as ctx:
+            tokenize('COMMIT "Add login')
+        self.assertEqual(str(ctx.exception), "Unclosed quote")
+
+    # 토큰 중간의 닫히지 않은 따옴표도 CommandError를 발생시키는지 검증한다.
+    def test_tokenize_unclosed_inline_quote_raises(self) -> None:
+        with self.assertRaises(CommandError) as ctx:
+            tokenize('COMMIT foo"bar')
+        self.assertEqual(str(ctx.exception), "Unclosed quote")
+
+    # REPL에서 닫히지 않은 따옴표가 한 줄 오류로 출력되는지 검증한다.
+    def test_repl_unclosed_quote_prints_error(self) -> None:
+        lines = _response_lines(
+            _run_script('INIT alice\nCOMMIT "unclosed\nexit\n')
+        )
+        self.assertEqual(lines[-1], "Unclosed quote")
 
 
 class TestFormatCommit(unittest.TestCase):
