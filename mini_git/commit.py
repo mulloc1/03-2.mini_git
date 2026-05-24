@@ -7,12 +7,17 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Commit:
-    """Immutable DAG commit node."""
+    """Immutable DAG commit node.
+
+    ``timestamp`` is a monotonic creation-order integer for sort/tie-break.
+    ``created_at`` is a ``clock()`` snapshot for human-readable LOG display.
+    """
 
     hash: str
     message: str
     author: str
     timestamp: int
+    created_at: float = 0.0
     parents: tuple[str, ...] = ()
 
 

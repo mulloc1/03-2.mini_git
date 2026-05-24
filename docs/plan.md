@@ -101,7 +101,7 @@ Follows subject §4.2–§4.5 responsibilities (commit graph, inverted index, so
 | `Commit`     | `@dataclass(frozen=True)` — `hash: str`, `message: str`, `author: str`, `timestamp: int`, `parents: tuple[str, ...]` |
 | Immutability | Commits are immutable once created (DAG node semantics). Parents as immutable `tuple`                                |
 | `HashIssuer` | Monotonic counter → `f"{n:07x}"`. `reset()` on `INIT`                                                                |
-| Display time | `Commit` holds monotonic timestamp only. Human-readable time in separate `Repository` dict if needed                 |
+| Display time | `Commit.timestamp` for sort/ties; `Commit.created_at` (`clock()` snapshot) for LOG display                           |
 
 ### 4.2 Commit Graph Store (inside `repository.py`)
 
@@ -204,7 +204,7 @@ Combines structures and algorithms. **Pure logic layer** — returns Python valu
 ### 7.2 Clock Injection
 
 - Constructor: `Repository(clock: Callable[[], float] = time.time)`.
-- Human time: `clock()` stored in `_human_clock_at[hash]` for display. Sort/ties use monotonic `timestamp` only.
+- Human time: `clock()` stored in `Commit.created_at` at creation. Sort/ties use monotonic `timestamp` only.
 - Tests: `FakeClock` (.cursorrules §5).
 
 ### 7.3 Adjacency (`PATH` helper)

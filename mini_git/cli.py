@@ -57,10 +57,10 @@ def tokenize(line: str) -> list[str]:
     return tokens
 
 
-def format_commit(commit: Commit, human_at: float) -> str:
+def format_commit(commit: Commit) -> str:
     """Format one commit summary line per plan §9.0."""
     timestamp = time.strftime(
-        "%Y-%m-%d %H:%M:%S", time.localtime(human_at)
+        "%Y-%m-%d %H:%M:%S", time.localtime(commit.created_at)
     )
     return f"{commit.hash} {commit.author} {timestamp} {commit.message}"
 
@@ -70,12 +70,9 @@ def _write_line(stdout: TextIO, text: str) -> None:
     stdout.write("\n")
 
 
-def _write_commits(
-    repo: Repository, commits: list[Commit], stdout: TextIO
-) -> None:
+def _write_commits(commits: list[Commit], stdout: TextIO) -> None:
     for commit in commits:
-        human_at = repo.human_clock_at(commit.hash)
-        _write_line(stdout, format_commit(commit, human_at))
+        _write_line(stdout, format_commit(commit))
 
 
 def _handle_init(repo: Repository, args: list[str], stdout: TextIO) -> None:
@@ -119,7 +116,7 @@ def _handle_log(repo: Repository, args: list[str], stdout: TextIO) -> None:
     if not commits:
         _write_line(stdout, "(no commits)")
         return
-    _write_commits(repo, commits, stdout)
+    _write_commits(commits, stdout)
 
 
 def _handle_path(repo: Repository, args: list[str], stdout: TextIO) -> None:
@@ -141,7 +138,7 @@ def _handle_ancestors(
     if not commits:
         _write_line(stdout, "(no ancestors)")
         return
-    _write_commits(repo, commits, stdout)
+    _write_commits(commits, stdout)
 
 
 def _handle_search(repo: Repository, args: list[str], stdout: TextIO) -> None:
@@ -158,7 +155,7 @@ def _handle_search(repo: Repository, args: list[str], stdout: TextIO) -> None:
     if not commits:
         _write_line(stdout, "No results")
         return
-    _write_commits(repo, commits, stdout)
+    _write_commits(commits, stdout)
 
 
 def _read_diff_file(path: str) -> list[str]:
@@ -222,8 +219,6 @@ def dispatch(repo: Repository, tokens: list[str], stdout: TextIO) -> bool:
     if not tokens:
         return True
     command = tokens[0].lower()
-    if command in _EXIT_COMMANDS:
-        return False
     handler = _HANDLERS.get(command)
     if handler is None:
         raise CommandError(f"Unknown command: {tokens[0]}")

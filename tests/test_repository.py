@@ -84,6 +84,8 @@ class TestCommit(unittest.TestCase):
         b = repo.commit("b")
         self.assertEqual(a.timestamp, 1)
         self.assertEqual(b.timestamp, 2)
+        self.assertEqual(a.created_at, 1000.0)
+        self.assertEqual(b.created_at, 1005.0)
 
 
 class TestBranch(unittest.TestCase):

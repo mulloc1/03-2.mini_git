@@ -66,8 +66,9 @@ class TestFormatCommit(unittest.TestCase):
             message="Add login feature",
             author="alice",
             timestamp=1,
+            created_at=0.0,
         )
-        line = format_commit(commit, 0.0)
+        line = format_commit(commit)
         self.assertEqual(
             line,
             f"0000001 alice {_expected_timestamp(0.0)} Add login feature",

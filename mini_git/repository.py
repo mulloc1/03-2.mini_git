@@ -32,7 +32,6 @@ class Repository:
         self._branches: dict[str, str | None] = {}
         self._children: dict[str, list[str]] = {}
         self._root_hashes: list[str] = []
-        self._human_clock_at: dict[str, float] = {}
         self._head: str | None = None
         self._author: str | None = None
         self._timestamp_counter = 0
@@ -49,7 +48,6 @@ class Repository:
         self._branches = {DEFAULT_BRANCH: None}
         self._children = {}
         self._root_hashes = []
-        self._human_clock_at = {}
         self._head = DEFAULT_BRANCH
         self._author = user_name
         self._timestamp_counter = 0
@@ -83,7 +81,7 @@ class Repository:
 
         The parent is the current HEAD commit (or none for the very first
         commit). Updates the commit graph, branch pointer, child index,
-        inverted index, and human-readable clock map.
+        and inverted index.
         """
         self._require_initialized()
         head_branch = self._current_branch()
@@ -97,12 +95,12 @@ class Repository:
             message=message,
             author=self._author or "",
             timestamp=self._timestamp_counter,
+            created_at=self._clock(),
             parents=parents,
         )
 
         self._commits[new_hash] = commit
         self._branches[head_branch] = new_hash
-        self._human_clock_at[new_hash] = self._clock()
         if parent is None:
             self._root_hashes.append(new_hash)
         else:
@@ -138,12 +136,12 @@ class Repository:
             message=f"Merge branch {branch_name}",
             author=self._author or "",
             timestamp=self._timestamp_counter,
+            created_at=self._clock(),
             parents=(current_head, target_head),
         )
 
         self._commits[new_hash] = commit
         self._branches[current_branch] = new_hash
-        self._human_clock_at[new_hash] = self._clock()
         self._children.setdefault(current_head, []).append(new_hash)
         self._children.setdefault(target_head, []).append(new_hash)
         self._index.add_commit(commit)
@@ -173,12 +171,6 @@ class Repository:
         if commit_hash not in self._commits:
             raise RepoError(f"Unknown commit: {commit_hash}")
         return self._commits[commit_hash]
-
-    def human_clock_at(self, commit_hash: str) -> float:
-        """Return the human-readable clock value stored at commit creation."""
-        self._require_initialized()
-        self.get_commit(commit_hash)
-        return self._human_clock_at[commit_hash]
 
     def log(self) -> list[Commit]:
         """Return all commits in parent-before-child topological order."""
