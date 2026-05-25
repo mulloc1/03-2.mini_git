@@ -82,24 +82,35 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 ## 출력 형식
 
-### 커밋 한 줄 요약
+### LOG 출력 (`git log` 스타일)
 
-`LOG`, `ANCESTORS`, `SEARCH` 결과는 다음 형식입니다.
+`LOG` / `LOG --sort-by=*` 는 실제 Git과 비슷한 블록 형식입니다. 현재 HEAD가 가리키는 커밋에는 `(HEAD -> <branch>)` 가 붙습니다.
+
+```
+commit 0000001
+Author: alice
+Date:   Thu May 16 09:00:00 2026 +0900
+
+    Add login feature
+
+commit 0000002 (HEAD -> main)
+Author: alice
+Date:   Thu May 16 09:00:01 2026 +0900
+
+    Fix login bug
+```
+
+표시 시각은 커밋 생성 시점의 `time.time()` 값을 로컬 타임존으로 포맷한 것입니다. 정렬·동률 처리에는 별도의 **단조 증가 `timestamp` 정수**를 사용합니다.
+
+### SEARCH / ANCESTORS 한 줄 요약
+
+`ANCESTORS`, `SEARCH` 결과는 다음 형식입니다.
 
 ```
 <hash> <author> <branch> <YYYY-MM-DD HH:MM:SS> <message>
 ```
 
 `<branch>`는 해당 커밋을 만들 때 HEAD였던 브랜치 이름입니다.
-
-예:
-
-```
-0000001 alice main 2026-05-16 09:00:00 Add login feature
-0000002 alice feature 2026-05-16 09:00:01 on feature
-```
-
-표시 시각은 커밋 생성 시점의 `time.time()` 값을 `localtime`으로 포맷한 것입니다. 정렬·동률 처리에는 별도의 **단조 증가 `timestamp` 정수**를 사용합니다.
 
 ### 브랜치 요약
 

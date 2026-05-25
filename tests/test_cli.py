@@ -10,7 +10,14 @@ from io import StringIO
 
 from helpers import FakeClock, make_repo
 
-from mini_git.cli import format_commit, run_repl, tokenize
+from mini_git.cli import (
+    format_commit,
+    format_commit_log,
+    format_git_date,
+    run_repl,
+    tokenize,
+)
+from mini_git.commit import Commit
 from mini_git.errors import CommandError
 from mini_git.main import main
 from mini_git.repository import Repository
@@ -41,6 +48,10 @@ def _expected_timestamp(clock_value: float) -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(clock_value))
 
 
+def _expected_git_date(clock_value: float) -> str:
+    return format_git_date(clock_value)
+
+
 def _expected_log_line(
     commit_hash: str,
     author: str,
@@ -52,6 +63,28 @@ def _expected_log_line(
         f"{commit_hash} {author} {branch} "
         f"{_expected_timestamp(clock_value)} {message}"
     )
+
+
+def _expected_log_block(
+    commit_hash: str,
+    author: str,
+    clock_value: float,
+    message: str,
+    *,
+    head_branch: str | None = None,
+) -> str:
+    commit = Commit(
+        hash=commit_hash,
+        message=message,
+        author=author,
+        timestamp=0,
+        created_at=clock_value,
+    )
+    return format_commit_log(commit, head_branch=head_branch)
+
+
+def _log_commit_hashes(lines: list[str]) -> list[str]:
+    return [line.split()[1] for line in lines if line.startswith("commit ")]
 
 
 class TestTokenize(unittest.TestCase):
@@ -90,7 +123,35 @@ class TestTokenize(unittest.TestCase):
 
 
 class TestFormatCommit(unittest.TestCase):
-    # format_commit이 §9.0 한 줄 요약 형식을 따르는지 검증한다.
+    # format_git_date가 git log 스타일 날짜를 반환하는지 검증한다.
+    def test_format_git_date(self) -> None:
+        self.assertEqual(format_git_date(0.0), _expected_git_date(0.0))
+
+    # format_commit_log가 git log 블록 형식을 따르는지 검증한다.
+    def test_format_commit_log_block(self) -> None:
+        from mini_git.commit import Commit
+
+        commit = Commit(
+            hash="0000002",
+            message="Fix login bug",
+            author="alice",
+            timestamp=1,
+            created_at=1.0,
+            branch="main",
+        )
+        block = format_commit_log(commit, head_branch="main")
+        self.assertEqual(
+            block,
+            _expected_log_block(
+                "0000002",
+                "alice",
+                1.0,
+                "Fix login bug",
+                head_branch="main",
+            ),
+        )
+
+    # format_commit이 SEARCH/ANCESTORS 한 줄 요약 형식을 따르는지 검증한다.
     def test_format_commit_line(self) -> None:
         from mini_git.commit import Commit
 
@@ -157,21 +218,25 @@ class TestLog(unittest.TestCase):
         repo.commit("Fix login bug")
         stdout = StringIO()
         run_repl(repo, StringIO("LOG\nexit\n"), stdout)
-        log_lines = _response_lines(stdout.getvalue())
-        self.assertEqual(
-            log_lines[0],
-            _expected_log_line(
-                "0000001", "alice", "main", 0.0, "Add login feature"
-            ),
+        output = stdout.getvalue()
+        self.assertIn(
+            _expected_log_block("0000001", "alice", 0.0, "Add login feature"),
+            output,
         )
-        self.assertEqual(
-            log_lines[1],
-            _expected_log_line(
-                "0000002", "alice", "main", 1.0, "Fix login bug"
+        self.assertIn(
+            _expected_log_block(
+                "0000002",
+                "alice",
+                1.0,
+                "Fix login bug",
+                head_branch="main",
             ),
+            output,
         )
-        self.assertEqual(log_lines[2], "Branches:")
-        self.assertEqual(log_lines[3], "* main -> 0000002")
+        log_lines = _response_lines(output)
+        self.assertEqual(_log_commit_hashes(log_lines), ["0000001", "0000002"])
+        self.assertEqual(log_lines[-2], "Branches:")
+        self.assertEqual(log_lines[-1], "* main -> 0000002")
 
 
 class TestBranches(unittest.TestCase):
@@ -218,8 +283,7 @@ class TestLogSorted(unittest.TestCase):
         stdout = StringIO()
         run_repl(repo, StringIO("LOG --sort-by=date\nexit\n"), stdout)
         lines = _response_lines(stdout.getvalue())
-        self.assertEqual(lines[0].startswith("0000001"), True)
-        self.assertEqual(lines[1].startswith("0000002"), True)
+        self.assertEqual(_log_commit_hashes(lines), ["0000001", "0000002"])
 
     # LOG --sort-by=author가 author 오름차순인지 검증한다.
     def test_log_sort_by_author(self) -> None:
@@ -231,9 +295,9 @@ class TestLogSorted(unittest.TestCase):
         repo.commit("from bob")
         stdout = StringIO()
         run_repl(repo, StringIO("LOG --sort-by=author\nexit\n"), stdout)
-        lines = _response_lines(stdout.getvalue())
-        self.assertTrue(lines[0].startswith("0000001 alice"))
-        self.assertTrue(lines[1].startswith("0000002 bob"))
+        output = stdout.getvalue()
+        self.assertEqual(_log_commit_hashes(_response_lines(output)), ["0000001", "0000002"])
+        self.assertLess(output.index("Author: alice"), output.index("Author: bob"))
 
 
 class TestPath(unittest.TestCase):
@@ -454,7 +518,7 @@ class TestMergeCli(unittest.TestCase):
     def test_log_after_merge_topology_regression(self) -> None:
         script = _DIAMOND_MERGE_SCRIPT + "MERGE feature\nLOG\nexit\n"
         lines = _response_lines(_run_script(script))
-        log_hashes = [line.split()[0] for line in lines if line.startswith("0000")]
+        log_hashes = _log_commit_hashes(lines)
         self.assertEqual(log_hashes[-1], "0000005")
         idx_main = log_hashes.index("0000003")
         idx_feature = log_hashes.index("0000004")

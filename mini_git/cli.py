@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from collections.abc import Callable
 from typing import IO, TextIO
 
@@ -60,14 +61,38 @@ def tokenize(line: str) -> list[str]:
     return tokens
 
 
+def format_git_date(created_at: float) -> str:
+    """Format a commit timestamp like ``git log`` (local timezone)."""
+    return datetime.fromtimestamp(created_at).astimezone().strftime(
+        "%a %b %d %H:%M:%S %Y %z"
+    )
+
+
 def format_commit(commit: Commit) -> str:
-    """Format one commit summary line per plan §9.0."""
+    """Format one commit summary line for SEARCH and ANCESTORS."""
     timestamp = time.strftime(
         "%Y-%m-%d %H:%M:%S", time.localtime(commit.created_at)
     )
     return (
         f"{commit.hash} {commit.author} {commit.branch} "
         f"{timestamp} {commit.message}"
+    )
+
+
+def format_commit_log(commit: Commit, *, head_branch: str | None = None) -> str:
+    """Format one commit block like ``git log``."""
+    header = f"commit {commit.hash}"
+    if head_branch is not None:
+        header += f" (HEAD -> {head_branch})"
+    body_lines = [f"    {line}" for line in commit.message.split("\n")]
+    return "\n".join(
+        [
+            header,
+            f"Author: {commit.author}",
+            f"Date:   {format_git_date(commit.created_at)}",
+            "",
+            *body_lines,
+        ]
     )
 
 
@@ -79,6 +104,24 @@ def _write_line(stdout: TextIO, text: str) -> None:
 def _write_commits(commits: list[Commit], stdout: TextIO) -> None:
     for commit in commits:
         _write_line(stdout, format_commit(commit))
+
+
+def _write_log_commits(
+    commits: list[Commit], repo: Repository, stdout: TextIO
+) -> None:
+    """Print commits in git-log style, annotating the current HEAD tip."""
+    head_branch = repo.head
+    head_hash = repo.head_commit()
+    blocks: list[str] = []
+    for commit in commits:
+        label = (
+            head_branch
+            if head_branch is not None and commit.hash == head_hash
+            else None
+        )
+        blocks.append(format_commit_log(commit, head_branch=label))
+    stdout.write("\n\n".join(blocks))
+    stdout.write("\n")
 
 
 def _write_branches(repo: Repository, stdout: TextIO) -> None:
@@ -141,7 +184,7 @@ def _handle_log(repo: Repository, args: list[str], stdout: TextIO) -> None:
     if not commits:
         _write_line(stdout, "(no commits)")
     else:
-        _write_commits(commits, stdout)
+        _write_log_commits(commits, repo, stdout)
     _write_branches(repo, stdout)
 
 
