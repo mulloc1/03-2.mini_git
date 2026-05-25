@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Iterable
 
-from mini_git.commit import Commit, HashIssuer
+from mini_git.commit import Commit, HashGenerator
 from mini_git.errors import RepoError
 from mini_git.graph import ancestors as graph_ancestors
 from mini_git.graph import shortest_path, topological_order
@@ -26,7 +26,7 @@ class Repository:
     def __init__(self, clock: Callable[[], float] = time.time) -> None:
         """Build an uninitialized repository; ``init`` must be called first."""
         self._clock = clock
-        self._issuer = HashIssuer()
+        self._hash_generator = HashGenerator()
         self._index = InvertedIndex()
         self._commits: dict[str, Commit] = {}
         self._branches: dict[str, str | None] = {}
@@ -40,9 +40,9 @@ class Repository:
         """Reset all session state and start a fresh repository.
 
         Creates the default ``main`` branch with no commit yet, makes
-        ``user_name`` the active author, and rewinds the hash issuer.
+        ``user_name`` the active author, and rewinds the hash generator.
         """
-        self._issuer.reset()
+        self._hash_generator.reset()
         self._index = InvertedIndex()
         self._commits = {}
         self._branches = {DEFAULT_BRANCH: None}
@@ -88,7 +88,7 @@ class Repository:
         parent = self._branches[head_branch]
         parents: tuple[str, ...] = () if parent is None else (parent,)
 
-        new_hash = self._issuer.issue()
+        new_hash = self._hash_generator.issue()
         self._timestamp_counter += 1
         commit = Commit(
             hash=new_hash,
@@ -96,6 +96,7 @@ class Repository:
             author=self._author or "",
             timestamp=self._timestamp_counter,
             created_at=self._clock(),
+            branch=head_branch,
             parents=parents,
         )
 
@@ -129,7 +130,7 @@ class Repository:
         if target_head in ancestor_hashes:
             raise RepoError("Already up to date")
 
-        new_hash = self._issuer.issue()
+        new_hash = self._hash_generator.issue()
         self._timestamp_counter += 1
         commit = Commit(
             hash=new_hash,
@@ -137,6 +138,7 @@ class Repository:
             author=self._author or "",
             timestamp=self._timestamp_counter,
             created_at=self._clock(),
+            branch=current_branch,
             parents=(current_head, target_head),
         )
 

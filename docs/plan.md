@@ -66,7 +66,7 @@ Follows subject §4.2–§4.5 responsibilities (commit graph, inverted index, so
 │   ├── __init__.py
 │   ├── __main__.py           # python -m mini_git → main()
 │   ├── main.py               # Entry assembly · REPL loop
-│   ├── commit.py             # Commit dataclass + hash issuer
+│   ├── commit.py             # Commit dataclass + hash generator
 │   ├── inverted_index.py     # Inverted index (keyword/author → hash list) (subject §4.3)
 │   ├── graph.py              # Topological sort · BFS shortest path · all ancestors (subject §4.5)
 │   ├── sort.py               # Stable merge sort (subject §4.4)
@@ -100,7 +100,7 @@ Follows subject §4.2–§4.5 responsibilities (commit graph, inverted index, so
 | ------------ | -------------------------------------------------------------------------------------------------------------------- |
 | `Commit`     | `@dataclass(frozen=True)` — `hash: str`, `message: str`, `author: str`, `timestamp: int`, `parents: tuple[str, ...]` |
 | Immutability | Commits are immutable once created (DAG node semantics). Parents as immutable `tuple`                                |
-| `HashIssuer` | Monotonic counter → `f"{n:07x}"`. `reset()` on `INIT`                                                                |
+| `HashGenerator` | Monotonic counter → `f"{n:07x}"`. `reset()` on `INIT`                                                                |
 | Display time | `Commit.timestamp` for sort/ties; `Commit.created_at` (`clock()` snapshot) for LOG display                           |
 
 ### 4.2 Commit Graph Store (inside `repository.py`)
@@ -114,7 +114,7 @@ subject §4.2 “repository: fast lookup by hash (e.g. hash map)” via dict.
 | `_head`        | `str` — current branch name                                                  |
 | `_author`      | `str` — current user                                                         |
 | `_root_hashes` | `list[str]` — root commits (`parents == ()`). Used to seed topological `LOG` |
-| `_issuer`      | `HashIssuer` — session counter                                               |
+| `_hash_generator` | `HashGenerator` — session counter                                            |
 
 > This assignment does **not** forbid built-in dict (subject §4.2). Differentiation is direct inverted index, sort, and graph algorithms (§4.3–§4.5).
 
@@ -190,7 +190,7 @@ Combines structures and algorithms. **Pure logic layer** — returns Python valu
 
 | Method                                      | Behavior                                                                                                                                                                  |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init(user_name: str) -> None`              | Reset all state. Create `main` (no commit until first `COMMIT` — `_branches["main"]` empty; see §7.4). HEAD = `main`. author = `user_name`. Reset index and `HashIssuer`. |
+| `init(user_name: str) -> None`              | Reset all state. Create `main` (no commit until first `COMMIT` — `_branches["main"]` empty; see §7.4). HEAD = `main`. author = `user_name`. Reset index and `HashGenerator`. |
 | `branch(branch_name: str) -> None`          | Register current HEAD commit as new branch (error if no commit yet). Duplicate name → `RepoError`.                                                                        |
 | `switch(branch_name: str) -> None`          | Missing → `RepoError`. Else update HEAD.                                                                                                                                  |
 | `commit(message: str) -> Commit`            | Error if not initialized. Parent = current HEAD commit hash (or none). Issue hash, update `_commits`, `_branches[head]`, index; return.                                   |
@@ -409,9 +409,9 @@ Each phase = **one logical change = one commit** (.cursorrules §5), Conventiona
 
 ### Phase 1 — Commit Node & Hash Issuer (subject §4.2)
 
-- `commit.py` — frozen `Commit`, `HashIssuer`.
+- `commit.py` — frozen `Commit`, `HashGenerator`.
 - `test_commit.py` — uniqueness, reset on `INIT`, immutable root `parents`.
-- Commit: `feat: add commit node and hash issuer`
+- Commit: `feat: add commit node and hash generator`
 
 ### Phase 2 — Stable Merge Sort (subject §4.4)
 
@@ -487,7 +487,7 @@ Each phase = **one logical change = one commit** (.cursorrules §5), Conventiona
 
 Checklist:
 
-- `Commit` immutability; `HashIssuer` reset on `INIT`.
+- `Commit` immutability; `HashGenerator` reset on `INIT`.
 - Merge sort stability and multi-key.
 - Inverted index: split+lower, dedupe token per commit.
 - `topological_order` parent-first + deterministic ties.
@@ -508,7 +508,7 @@ Checklist:
 | ------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------ |
 | `PATH` lex-min path                   | Enumerating all paths explodes         | BFS backtrack with lex-min predecessor only (§6.2)                       |
 | `SEARCH` token rules                  | Substring vs token ambiguity           | **Exact token match** locked (§2), documented in README/plan             |
-| `INIT` hash counter                   | “New session” vs “restart”             | `HashIssuer.reset()`; define uniqueness as “since last `INIT`” in README |
+| `INIT` hash counter                   | “New session” vs “restart”             | `HashGenerator.reset()`; define uniqueness as “since last `INIT`” in README |
 | `BRANCH`/`SWITCH` before first commit | `_branches["main"] is None`            | `BRANCH` rejected; `SWITCH main` only (§7.4)                             |
 | Topological ties                      | Unsorted enqueue → nondeterministic    | `merge_sort` at every enqueue (§6.1) + regression test                   |
 | `clock` in output                     | Nondeterministic real time             | Mandatory `FakeClock` in CLI output tests                                |

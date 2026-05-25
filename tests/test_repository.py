@@ -20,7 +20,7 @@ class TestInit(unittest.TestCase):
         self.assertEqual(repo.branches(), {"main": None})
         self.assertIsNone(repo.head_commit())
 
-    # 재 INIT 시 커밋·인덱스·HashIssuer가 전부 초기화되는지 검증한다.
+    # 재 INIT 시 커밋·인덱스·HashGenerator가 전부 초기화되는지 검증한다.
     def test_init_resets_all_state(self) -> None:
         repo = make_repo()
         repo.init("alice")
@@ -29,7 +29,7 @@ class TestInit(unittest.TestCase):
         self.assertEqual(repo.author, "bob")
         self.assertEqual(repo.branches(), {"main": None})
         self.assertIsNone(repo.head_commit())
-        # HashIssuer reset → 다음 커밋이 다시 0000001
+        # HashGenerator reset → 다음 커밋이 다시 0000001
         self.assertEqual(repo.commit("again").hash, first_hash)
 
 

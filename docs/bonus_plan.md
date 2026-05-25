@@ -4,13 +4,11 @@ This document plans the **bonus tasks** in `docs/subject.md` §5. It assumes the
 
 Subject §5 lists three optional items:
 
-
 | Item                            | Subject text                                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------------------------------ |
 | **Diff**                        | `diff <file1> <file2>`: line-by-line compare; mark **added / deleted / common** lines            |
 | **Merge simulation**            | `merge <branch_name>`: merge commit with **two** parents (current HEAD + target branch HEAD)     |
 | **Sort performance comparison** | For our sort implementation, document **runtime or comparison counts** by input size and pattern |
-
 
 ---
 
@@ -27,7 +25,6 @@ Subject §5 lists three optional items:
 ## 2. Locked Decisions
 
 Decisions for items left free by subject §5 (output format details, conflict handling, etc.) and for choices that would be expensive to reverse later.
-
 
 | Item                                          | Decision                                                                                                                                     | Rationale                                                                               |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -51,7 +48,6 @@ Decisions for items left free by subject §5 (output format details, conflict ha
 | Sort benchmark output                         | Markdown table written to `docs/insights/sort_performance.md` by `scripts/bench_sort.py`                                                     | Keeps repo deterministic; the script is **optional to run**, the doc is the deliverable |
 | Sort benchmark RNG                            | Fixed `random.Random(seed=0)`                                                                                                                | Determinism (`.cursorrules` §6 Testing Determinism)                                     |
 
-
 > All other free choices follow `docs/plan.md` §2 (e.g. hash issuer, clock injection, exit codes). This file does **not** override any decision locked there.
 
 ---
@@ -60,20 +56,18 @@ Decisions for items left free by subject §5 (output format details, conflict ha
 
 We aim to **edit existing modules** rather than introduce new layers. Only one new pure-logic module (`diff.py`) is justified because diff has no current home.
 
-
 | File                                        | Change                                                                                                            |
 | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `mini_git/diff.py` *(new)*                  | Pure LCS line diff; returns a list of `(kind, line)` records                                                      |
+| `mini_git/diff.py` _(new)_                  | Pure LCS line diff; returns a list of `(kind, line)` records                                                      |
 | `mini_git/repository.py`                    | Add `merge(branch_name)`; helper for "is ancestor?" reuses `graph.ancestors`; update `_children` for both parents |
 | `mini_git/cli.py`                           | New handlers for `diff` and `merge`; read files for `diff`; format output                                         |
 | `mini_git/errors.py`                        | No new exception types — reuse `CommandError` / `RepoError` with new messages                                     |
-| `scripts/bench_sort.py` *(new)*             | Stdlib-only benchmark; writes `docs/insights/sort_performance.md`                                                 |
-| `docs/insights/sort_performance.md` *(new)* | The actual measurement table + a short discussion                                                                 |
-| `tests/test_diff.py` *(new)*                | Pure LCS cases                                                                                                    |
+| `scripts/bench_sort.py` _(new)_             | Stdlib-only benchmark; writes `docs/insights/sort_performance.md`                                                 |
+| `docs/insights/sort_performance.md` _(new)_ | The actual measurement table + a short discussion                                                                 |
+| `tests/test_diff.py` _(new)_                | Pure LCS cases                                                                                                    |
 | `tests/test_repository.py`                  | Add a `MergeTests` class (two-parent linkage, ancestor / path interplay, error cases)                             |
 | `tests/test_cli.py`                         | `DIFF` / `MERGE` end-to-end via the REPL                                                                          |
 | `README.md`                                 | Append a “Bonus Commands” section once the features land                                                          |
-
 
 > No new abstract base classes, no command-registry refactor (`.cursorrules` §3 — same pattern is used only once).
 
@@ -88,8 +82,10 @@ Classic LCS line diff:
 1. Read both files as `list[str]` of lines, stripped of the trailing newline.
 2. Build the LCS length DP table on the two line lists.
 3. Walk the table from `(len(A), len(B))` back to `(0, 0)`:
-  - Equal → emit a **common** record (push to front).
-  - Else go to the larger neighbor: up → **deleted** from A, left → **added** in B.
+
+- Equal → emit a **common** record (push to front).
+- Else go to the larger neighbor: up → **deleted** from A, left → **added** in B.
+
 4. Return records in source order.
 
 Complexity: O(|A| · |B|) time and space. Acceptable for `subject.md` (small text files, no streaming requirement).
@@ -109,7 +105,7 @@ A **pure function** that takes two `list[str]` and returns a list of records:
 1. Validate arg count → otherwise `Invalid args`.
 2. Open each path with `open(path, encoding="utf-8")`. `FileNotFoundError` → `File not found: <path>`. `OSError` / `UnicodeDecodeError` → `Cannot read file: <path>`.
 3. Split on `\n`, strip a trailing `\r`. Drop a final empty element if the file ends with `\n` (matches the visual line count users expect).
-4. Call `diff_lines` and print each record (`+` , `-` ,   `` prefixes).
+4. Call `diff_lines` and print each record (`+` , `-` , `` prefixes).
 5. If both files are byte-identical (no `added`/`deleted` records), print `Files are identical`.
 
 ### 4.4 Output spec
@@ -278,7 +274,6 @@ Same rules as `plan.md` §11:
 
 ## 9. Risks / Open Points
 
-
 | Risk                                                                | Mitigation                                                                                                                |
 | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `diff` LCS DP at large file sizes blows memory                      | Subject scope is "text files" at assignment scale; document the O(N·M) bound in the docstring; do not chunk in this phase |
@@ -288,16 +283,14 @@ Same rules as `plan.md` §11:
 | Comparison counting bleeds into production sort code                | Keep counter inside `scripts/bench_sort.py` only; do **not** mutate `mini_git/sort.py`                                    |
 | Wall-clock noise misleads readers                                   | Doc explicitly says the comparison-count table is the source of truth; runtime is illustrative                            |
 
-
 ---
 
 ## 10. Definition of Done
 
-- `DIFF <file1> <file2>` prints `+`  / `-`  /   `` lines for the LCS-aligned diff and `Files are identical` when applicable; missing or unreadable paths print the documented error messages.
+- `DIFF <file1> <file2>` prints `+` / `-` / ``lines for the LCS-aligned diff and`Files are identical` when applicable; missing or unreadable paths print the documented error messages.
 - `MERGE <branch_name>` creates a single new commit with **two** parents `(current_head, target_head)`, updates `_children` on both, and refuses self-merge / unknown branch / already-up-to-date / pre-first-commit cases with one-line messages.
 - All existing core tests still pass; new `tests/test_diff.py`, merge tests in `tests/test_repository.py`, and CLI tests in `tests/test_cli.py` pass under the standard `unittest` runner with no extra packages.
 - `docs/insights/sort_performance.md` exists in the repo and contains the comparison-count table for the locked `(pattern, size)` matrix plus a short discussion.
 - `scripts/bench_sort.py` runs to completion with stdlib only and rewrites the markdown file deterministically given the locked seed.
 - `README.md` documents the two new commands and links to the performance doc.
 - No change to the nine core commands' inputs, outputs, or error messages.
-

@@ -15,6 +15,7 @@ from mini_git.commit import Commit
 from mini_git.diff import diff_lines
 from mini_git.errors import CommandError, RepoError
 from mini_git.repository import Repository
+from mini_git.sort import merge_sort
 
 PROMPT = "mini-git> "
 _EXIT_COMMANDS = frozenset({"exit", "quit"})
@@ -64,7 +65,10 @@ def format_commit(commit: Commit) -> str:
     timestamp = time.strftime(
         "%Y-%m-%d %H:%M:%S", time.localtime(commit.created_at)
     )
-    return f"{commit.hash} {commit.author} {timestamp} {commit.message}"
+    return (
+        f"{commit.hash} {commit.author} {commit.branch} "
+        f"{timestamp} {commit.message}"
+    )
 
 
 def _write_line(stdout: TextIO, text: str) -> None:
@@ -75,6 +79,25 @@ def _write_line(stdout: TextIO, text: str) -> None:
 def _write_commits(commits: list[Commit], stdout: TextIO) -> None:
     for commit in commits:
         _write_line(stdout, format_commit(commit))
+
+
+def _write_branches(repo: Repository, stdout: TextIO) -> None:
+    """Print each branch tip; prefix ``*`` marks the current HEAD branch."""
+    head = repo.head
+    if head is None:
+        return
+    branches = repo.branches()
+    other_names = merge_sort(
+        [name for name in branches if name != head],
+        key=lambda name: name,
+    )
+    ordered_names = [head, *other_names]
+    _write_line(stdout, "Branches:")
+    for name in ordered_names:
+        commit_hash = branches[name]
+        tip = commit_hash if commit_hash is not None else "(no commit)"
+        prefix = "* " if name == head else "  "
+        _write_line(stdout, f"{prefix}{name} -> {tip}")
 
 
 def _handle_init(repo: Repository, args: list[str], stdout: TextIO) -> None:
@@ -117,8 +140,15 @@ def _handle_log(repo: Repository, args: list[str], stdout: TextIO) -> None:
         raise CommandError("Invalid args")
     if not commits:
         _write_line(stdout, "(no commits)")
-        return
-    _write_commits(commits, stdout)
+    else:
+        _write_commits(commits, stdout)
+    _write_branches(repo, stdout)
+
+
+def _handle_branches(repo: Repository, args: list[str], stdout: TextIO) -> None:
+    if len(args) != 0:
+        raise CommandError("Invalid args")
+    _write_branches(repo, stdout)
 
 
 def _handle_path(repo: Repository, args: list[str], stdout: TextIO) -> None:
@@ -208,6 +238,7 @@ _HANDLERS: dict[str, _Handler] = {
     "switch": _handle_switch,
     "commit": _handle_commit,
     "log": _handle_log,
+    "branches": _handle_branches,
     "path": _handle_path,
     "ancestors": _handle_ancestors,
     "search": _handle_search,

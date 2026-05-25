@@ -38,13 +38,13 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 ## 제한 사항 (중요)
 
-| 항목 | 설명 |
-| --- | --- |
-| **인메모리** | 커밋·브랜치·인덱스는 RAM에만 존재합니다. 파일로 저장하지 않습니다. |
-| **휘발성** | REPL을 종료하면 저장소가 사라집니다. |
+| 항목              | 설명                                                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------------------------------- |
+| **인메모리**      | 커밋·브랜치·인덱스는 RAM에만 존재합니다. 파일로 저장하지 않습니다.                                              |
+| **휘발성**        | REPL을 종료하면 저장소가 사라집니다.                                                                            |
 | **`INIT` 재실행** | 같은 세션에서 `INIT`을 다시 호출하면 **전체 상태가 초기화**됩니다(커밋, 브랜치, 역색인, 해시 카운터 모두 리셋). |
-| **해시 유일성** | `0000001`, `0000002`, … 형식의 7자리 hex는 **마지막 `INIT` 이후 세션 안에서만** 유일합니다. |
-| **정렬 API** | `sorted()`, `list.sort()`는 사용하지 않습니다. Merge Sort를 직접 구현했습니다. |
+| **해시 유일성**   | `0000001`, `0000002`, … 형식의 7자리 hex는 **마지막 `INIT` 이후 세션 안에서만** 유일합니다.                     |
+| **정렬 API**      | `sorted()`, `list.sort()`는 사용하지 않습니다. Merge Sort를 직접 구현했습니다.                                  |
 
 ---
 
@@ -52,20 +52,21 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 명령어는 **대소문자를 구분하지 않습니다** (`init` = `INIT`).
 
-| 명령 | 설명 |
-| --- | --- |
-| `INIT <user_name>` | 저장소 초기화. 기본 브랜치 `main`, HEAD·작성자 설정 |
-| `BRANCH <branch_name>` | 현재 HEAD 커밋을 가리키는 새 브랜치 생성 |
-| `SWITCH <branch_name>` | HEAD를 해당 브랜치로 이동 |
-| `COMMIT <message>` | 현재 브랜치에 커밋 생성(부모 = HEAD 커밋) |
-| `LOG` | 전체 커밋을 **부모 → 자식** 토폴로지 순으로 출력 |
-| `LOG --sort-by=date` | `timestamp` 오름차순 정렬 |
-| `LOG --sort-by=author` | `author` 오름차순, 동률 시 `timestamp` → `hash` |
-| `PATH <commit1> <commit2>` | 두 커밋 사이 **무방향** 최단 경로 |
-| `ANCESTORS <commit_hash>` | 조상 커밋 전체(시작 커밋 제외), 토폴로지 순 |
-| `SEARCH <keyword>` | 메시지 **토큰** exact match (대소문자 무시) |
-| `SEARCH --author=<name>` | 작성자 **정확히** 일치 (대소문자 구분) |
-| `exit` / `quit` | REPL 종료 |
+| 명령                       | 설명                                                |
+| -------------------------- | --------------------------------------------------- |
+| `INIT <user_name>`         | 저장소 초기화. 기본 브랜치 `main`, HEAD·작성자 설정 |
+| `BRANCH <branch_name>`     | 현재 HEAD 커밋을 가리키는 새 브랜치 생성            |
+| `SWITCH <branch_name>`     | HEAD를 해당 브랜치로 이동                           |
+| `COMMIT <message>`         | 현재 브랜치에 커밋 생성(부모 = HEAD 커밋)           |
+| `LOG`                      | 전체 커밋을 **부모 → 자식** 토폴로지 순으로 출력 (끝에 브랜치 요약) |
+| `LOG --sort-by=date`       | `timestamp` 오름차순 정렬 (끝에 브랜치 요약)        |
+| `LOG --sort-by=author`     | `author` 오름차순, 동률 시 `timestamp` → `hash` (끝에 브랜치 요약) |
+| `BRANCHES`                 | 모든 브랜치가 가리키는 커밋·현재 HEAD(`*`) 출력     |
+| `PATH <commit1> <commit2>` | 두 커밋 사이 **무방향** 최단 경로                   |
+| `ANCESTORS <commit_hash>`  | 조상 커밋 전체(시작 커밋 제외), 토폴로지 순         |
+| `SEARCH <keyword>`         | 메시지 **토큰** exact match (대소문자 무시)         |
+| `SEARCH --author=<name>`   | 작성자 **정확히** 일치 (대소문자 구분)              |
+| `exit` / `quit`            | REPL 종료                                           |
 
 ### 인자·옵션 규칙
 
@@ -86,16 +87,31 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 `LOG`, `ANCESTORS`, `SEARCH` 결과는 다음 형식입니다.
 
 ```
-<hash> <author> <YYYY-MM-DD HH:MM:SS> <message>
+<hash> <author> <branch> <YYYY-MM-DD HH:MM:SS> <message>
 ```
+
+`<branch>`는 해당 커밋을 만들 때 HEAD였던 브랜치 이름입니다.
 
 예:
 
 ```
-0000001 alice 2026-05-16 09:00:00 Add login feature
+0000001 alice main 2026-05-16 09:00:00 Add login feature
+0000002 alice feature 2026-05-16 09:00:01 on feature
 ```
 
 표시 시각은 커밋 생성 시점의 `time.time()` 값을 `localtime`으로 포맷한 것입니다. 정렬·동률 처리에는 별도의 **단조 증가 `timestamp` 정수**를 사용합니다.
+
+### 브랜치 요약
+
+`LOG` / `LOG --sort-by=*` / `BRANCHES` 실행 시 마지막에 출력됩니다.
+
+```
+Branches:
+* main -> 0000004
+  feature -> 0000002
+```
+
+`*`는 현재 HEAD 브랜치입니다. 커밋이 없으면 `(no commit)`입니다.
 
 ### 명령별 성공 메시지
 
@@ -122,24 +138,24 @@ mini-git> PATH 0000001 0000003
 
 ### 빈 결과·특수 메시지
 
-| 상황 | 출력 |
-| --- | --- |
-| 커밋 없이 `LOG` | `(no commits)` |
+| 상황                  | 출력             |
+| --------------------- | ---------------- |
+| 커밋 없이 `LOG`       | `(no commits)`   |
 | 루트 커밋 `ANCESTORS` | `(no ancestors)` |
-| 검색 결과 없음 | `No results` |
-| 경로 없음 | `No path` |
+| 검색 결과 없음        | `No results`     |
+| 경로 없음             | `No path`        |
 
 ### 오류 메시지 (대표)
 
-| 상황 | 출력 |
-| --- | --- |
-| 알 수 없는 명령 | `Unknown command: <cmd>` |
-| 인자 오류 | `Invalid args` |
-| 없는 브랜치 | `Unknown branch: <name>` |
-| 없는 커밋 해시 | `Unknown commit: <hash>` |
-| `INIT` 전 명령 | `Repository not initialized` |
+| 상황                | 출력                                |
+| ------------------- | ----------------------------------- |
+| 알 수 없는 명령     | `Unknown command: <cmd>`            |
+| 인자 오류           | `Invalid args`                      |
+| 없는 브랜치         | `Unknown branch: <name>`            |
+| 없는 커밋 해시      | `Unknown commit: <hash>`            |
+| `INIT` 전 명령      | `Repository not initialized`        |
 | 첫 커밋 전 `BRANCH` | `Cannot branch before first commit` |
-| 중복 브랜치 | `Branch already exists: <name>` |
+| 중복 브랜치         | `Branch already exists: <name>`     |
 
 ---
 
@@ -172,7 +188,7 @@ mini-git> PATH 0000001 0000003
 
 ### `SEARCH`
 
-- 키워드: 메시지를 **공백으로 분할** → 각 토큰을 **소문자화** → **토큰 전체 일치**만 인정합니다.  
+- 키워드: 메시지를 **공백으로 분할** → 각 토큰을 **소문자화** → **토큰 전체 일치**만 인정합니다.
   - `login`은 `"Add login feature"`에 매칭되지만, `log`는 `"login"`의 부분 문자열이 아니므로 매칭되지 않습니다.
 - `--author`: 작성자 문자열 **완전 일치**, **대소문자 구분**.
 - `SEARCH` / `ANCESTORS` 결과 순서: 토폴로지(부모 우선).
@@ -190,7 +206,7 @@ mini-git> PATH 0000001 0000003
 │   └── insights/
 │       └── sort_performance.md
 ├── mini_git/
-│   ├── commit.py        # Commit, HashIssuer
+│   ├── commit.py        # Commit, HashGenerator
 │   ├── diff.py          # LCS 줄 단위 diff (보너스)
 │   ├── inverted_index.py
 │   ├── graph.py         # topological_order, shortest_path, ancestors

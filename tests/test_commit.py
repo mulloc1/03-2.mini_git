@@ -5,16 +5,16 @@ from __future__ import annotations
 import dataclasses
 import unittest
 
-from mini_git.commit import Commit, HashIssuer
+from mini_git.commit import Commit, HashGenerator
 
 
-class TestHashIssuer(unittest.TestCase):
+class TestHashGenerator(unittest.TestCase):
     # 연속 issue()가 0000001, 0000002, 0000003 순서로 고유한지 검증한다.
-    def test_hash_issuer_sequential_unique(self) -> None:
-        issuer = HashIssuer()
-        h1 = issuer.issue()
-        h2 = issuer.issue()
-        h3 = issuer.issue()
+    def test_hash_generator_sequential_unique(self) -> None:
+        generator = HashGenerator()
+        h1 = generator.issue()
+        h2 = generator.issue()
+        h3 = generator.issue()
         self.assertEqual(h1, "0000001")
         self.assertEqual(h2, "0000002")
         self.assertEqual(h3, "0000003")
@@ -22,16 +22,16 @@ class TestHashIssuer(unittest.TestCase):
         self.assertNotEqual(h2, h3)
 
     # reset() 후 다음 issue()가 0000001부터 다시 시작하는지 검증한다.
-    def test_hash_issuer_reset(self) -> None:
-        issuer = HashIssuer()
-        issuer.issue()
-        issuer.issue()
-        issuer.reset()
-        self.assertEqual(issuer.issue(), "0000001")
+    def test_hash_generator_reset(self) -> None:
+        generator = HashGenerator()
+        generator.issue()
+        generator.issue()
+        generator.reset()
+        self.assertEqual(generator.issue(), "0000001")
 
     # 해시가 7자리 16진수 형식인지 검증한다.
     def test_hash_format_seven_hex_digits(self) -> None:
-        h = HashIssuer().issue()
+        h = HashGenerator().issue()
         self.assertEqual(len(h), 7)
         int(h, 16)
 

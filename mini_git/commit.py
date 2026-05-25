@@ -1,4 +1,4 @@
-"""Commit node and session hash issuer (subject §4.2)."""
+"""Commit node and session hash generator (subject §4.2)."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ class Commit:
 
     ``timestamp`` is a monotonic creation-order integer for sort/tie-break.
     ``created_at`` is a ``clock()`` snapshot for human-readable LOG display.
+    ``branch`` is the branch name that was HEAD when the commit was created.
     """
 
     hash: str
@@ -18,10 +19,11 @@ class Commit:
     author: str
     timestamp: int
     created_at: float = 0.0
+    branch: str = ""
     parents: tuple[str, ...] = ()
 
 
-class HashIssuer:
+class HashGenerator:
     """Session monotonic counter producing 7-digit hex commit hashes."""
 
     def __init__(self) -> None:

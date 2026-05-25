@@ -10,6 +10,7 @@ from mini_git.sort import merge_sort
 
 
 def topological_order(
+    
     hashes: Iterable[str],
     get_parents: Callable[[str], Iterable[str]],
     get_sort_key: Callable[[str], Any],

@@ -41,6 +41,19 @@ def _expected_timestamp(clock_value: float) -> str:
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(clock_value))
 
 
+def _expected_log_line(
+    commit_hash: str,
+    author: str,
+    branch: str,
+    clock_value: float,
+    message: str,
+) -> str:
+    return (
+        f"{commit_hash} {author} {branch} "
+        f"{_expected_timestamp(clock_value)} {message}"
+    )
+
+
 class TestTokenize(unittest.TestCase):
     # COMMIT quoted message가 단일 토큰으로 파싱되는지 검증한다.
     def test_tokenize_quoted_commit_message(self) -> None:
@@ -87,11 +100,14 @@ class TestFormatCommit(unittest.TestCase):
             author="alice",
             timestamp=1,
             created_at=0.0,
+            branch="main",
         )
         line = format_commit(commit)
         self.assertEqual(
             line,
-            f"0000001 alice {_expected_timestamp(0.0)} Add login feature",
+            _expected_log_line(
+                "0000001", "alice", "main", 0.0, "Add login feature"
+            ),
         )
 
 
@@ -121,7 +137,15 @@ class TestLog(unittest.TestCase):
     # 빈 저장소 LOG가 (no commits)를 출력하는지 검증한다.
     def test_log_empty(self) -> None:
         lines = _response_lines(_run_script("INIT alice\nLOG\nexit\n"))
-        self.assertEqual(lines, ["Initialized repository for alice", "(no commits)"])
+        self.assertEqual(
+            lines,
+            [
+                "Initialized repository for alice",
+                "(no commits)",
+                "Branches:",
+                "* main -> (no commit)",
+            ],
+        )
 
     # 선형 체인 LOG가 부모 우선 순서와 포맷을 따르는지 검증한다.
     def test_log_linear_chain(self) -> None:
@@ -136,12 +160,50 @@ class TestLog(unittest.TestCase):
         log_lines = _response_lines(stdout.getvalue())
         self.assertEqual(
             log_lines[0],
-            f"0000001 alice {_expected_timestamp(0.0)} Add login feature",
+            _expected_log_line(
+                "0000001", "alice", "main", 0.0, "Add login feature"
+            ),
         )
         self.assertEqual(
             log_lines[1],
-            f"0000002 alice {_expected_timestamp(1.0)} Fix login bug",
+            _expected_log_line(
+                "0000002", "alice", "main", 1.0, "Fix login bug"
+            ),
         )
+        self.assertEqual(log_lines[2], "Branches:")
+        self.assertEqual(log_lines[3], "* main -> 0000002")
+
+
+class TestBranches(unittest.TestCase):
+    # BRANCHES가 HEAD와 각 브랜치 tip을 출력하는지 검증한다.
+    def test_branches_lists_tips_and_head_marker(self) -> None:
+        script = (
+            "INIT alice\n"
+            "COMMIT base\n"
+            "BRANCH feature\n"
+            "SWITCH feature\n"
+            'COMMIT "on feature"\n'
+            "SWITCH main\n"
+            'COMMIT "on main"\n'
+            "BRANCHES\n"
+            "exit\n"
+        )
+        lines = _response_lines(_run_script(script))
+        idx = lines.index("Branches:")
+        branch_lines = lines[idx : idx + 3]
+        self.assertEqual(
+            branch_lines,
+            [
+                "Branches:",
+                "* main -> 0000003",
+                "  feature -> 0000002",
+            ],
+        )
+
+    # BRANCHES에 인자가 있으면 Invalid args를 출력하는지 검증한다.
+    def test_branches_invalid_args(self) -> None:
+        lines = _response_lines(_run_script("INIT alice\nBRANCHES extra\nexit\n"))
+        self.assertEqual(lines[-1], "Invalid args")
 
 
 class TestLogSorted(unittest.TestCase):
